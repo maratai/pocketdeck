@@ -10,11 +10,15 @@ Pocket deck is designed for standalone use. You don't need PC for application de
 
 Internet connectivity allows you to ask questions to AI, sync with a PC for file transfer, copy and paste, screen casting, and cloud storage integration with Google Drive.
 
-![Product image](images/pocketdeck.jpg)
+![Product image](../images/pocketdeck.jpg)
 
 # Purchase
 
 https://shop.nunomo.net
+
+# Discord
+
+https://discord.gg/58DWVVTP
 
 # Features
 
@@ -171,6 +175,9 @@ Press the button twice, like a double click, to shut down the device.
 - `/sd/lib` : Built Python applications
 - `/sd/lib/examples` : Python application examples
 - `/sd/py` : Python application folder for user apps
+- `/sd/work` : A folder for temporarily files.
+- `/sd/music` : A folder to store music
+
 
 ## Getting started
 
@@ -199,18 +206,18 @@ Here are some basic commands written by Python.
 
 command | summary
 --------|---------
-`ls [file]` | List files
-`cp src dst` | Copy a file
+`ls [file]` | List files. `-l` will show more information such as file size and datetime. Wild card is allowed for search. `-r` for recursive search.
+`cp [options] src dst` | Copy a file. `-r` for recursive copy. Wild card is allowed for src.
 `mv src dst` | Move a file
 `mkdir dir_name` | Create a directory
 `rmdir dir_name` | Delete a directory
-`cat file` | Print file contents
-`cd [dir]` | Change the working directory. Note that this is a global value shared between shells and applications. Applications such as the Pem editor do not know about the change.
+`cat file [file..]` | Print file(s) content
+`cd [dir]` | Change the working directory. **Note** unlike other OSes, this is a global value shared between shells and applications. Sometimes it makes confusing result.
 `pwd` | Get the current working directory. The default working directory is `/sd/Documents`.
-`netserver` | Launch a network server to provide services. It provides screencasting and clipboard sharing. See `[[netserver/GETTING_STARTED]]` for details.
+`netserver [password]` | Launch a network server to provide services. It provides screencasting, clipboard and file sharing. See `[[../netserver/GETTING_STARTED]]` for details.
 `setuni` | Change the terminal font to a CJK Unicode font
 `setjpf` | Change the terminal font to Japanese. It is lighter than `setuni`
-
+`grep [query] [path]` | Grep query under path. `-r` enables recursive search. `-e` enables regex search. `-n` adds line numbers. `-i` ignore cases. `-l` shows filenames only.
 
 ## Basic applications
 
@@ -235,7 +242,7 @@ The `analog_clock` application is useful. It includes an analog clock, calendar,
 
 - `c`: Copy the date to the clipboard. Format: `<yyyy-mm-dd day>`
 - Arrow keys: Move the calendar
-- Backspace: Switch between the calendar and timer
+- Backspace or B button: Switch between the calendar and timer
 
 
 ### Journal
@@ -291,8 +298,21 @@ You need an OpenAI API key to use the app. Save your API key to `/config/openapi
 - `-vt`, `--voice-type`: Select a voice type (`alloy`, `coral`, `echo`, `fable`, `onyx`, `nova`, `shimmer`)
 - `-c`, `--clipboard`: Use data from the clipboard as reference data
 - `-n`: Do not save the result
+- `-m`: Select model. Default is `gpt-5.4`. Proper model name such as gpt-5.4, or `f`,`m`, `h` are allowed. `f` is fast(gpt-5.4 mini), `m` is medium(gpt-5.4), `h` is high(gpt-5.5).
 - `-j`: Answer in Japanese. You need to execute the `setuni` command to use Unicode characters in the terminal font.
-- `-q`: Specify the content explicitly, for example after the `-f` option you need to use `-q` to mark the start of the question.
+- `-q`: Specify the content explicitly, for example after the `-f` option you need to use `-q` to mark the start of the question. If you specify filename after this option, it will read the file and use this as a main prompt.
+
+#### Special syntax in prompt file
+
+When you use `-q file` to give main prompt, you can include additional files by using `[[filename]]` format. The following example will include app_development.md as a reference.
+
+```
+[[pd/app_development.md]]
+
+Make a hello world program.
+```
+
+
 
 ### stt 
 
@@ -318,6 +338,49 @@ dic squeeze
 `gdrive` is Google Drive integration. You can upload files to Google Drive.
 
 `gdrive src dst`
+
+### Reader
+
+`reader` is E-book reader. It remebers position per file. It also supports Japanese vertical layout.
+
+`reader [options] filename`
+
+- `-v` : Vertical layout, good for Japanese book.
+
+arrow keys : navigate
+touch pad : scroll
+buttom buttons : page up, page down
+`B` button : quit
+
+### Invader
+
+`invader` is a invader game.
+
+### Nudoc
+
+`nudoc` is a Sudoku game.
+You can feed a custom board as an optional parameter, so you can play legendary boards.
+
+
+```
+nudoc [filename]
+```
+
+The file is a simple text format. 0 means a hole.
+
+Here is an example:
+
+```
+100007090
+030020008
+009600500
+005300900
+010080002
+600004000
+300000010
+040000007
+007000300
+```
 
 
 ### Zen chamber

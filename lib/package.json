@@ -49,6 +49,10 @@
             "data/active.xbmr"
         ],
         [
+            "data/agent_mode.md",
+            "data/agent_mode.md"
+        ],
+        [
             "data/block.xbmr",
             "data/block.xbmr"
         ],
@@ -57,20 +61,44 @@
             "data/cat1.xbm"
         ],
         [
+            "data/cat1.xbmr",
+            "data/cat1.xbmr"
+        ],
+        [
             "data/cat2.xbm",
             "data/cat2.xbm"
+        ],
+        [
+            "data/cat2.xbmr",
+            "data/cat2.xbmr"
         ],
         [
             "data/cat3.xbm",
             "data/cat3.xbm"
         ],
         [
+            "data/cat3.xbmr",
+            "data/cat3.xbmr"
+        ],
+        [
             "data/cat4.xbm",
             "data/cat4.xbm"
         ],
         [
+            "data/cat4.xbmr",
+            "data/cat4.xbmr"
+        ],
+        [
             "data/checked.xbmr",
             "data/checked.xbmr"
+        ],
+        [
+            "data/clear.wav",
+            "data/clear.wav"
+        ],
+        [
+            "data/easy.xbmr",
+            "data/easy.xbmr"
         ],
         [
             "data/fireball.xbmr",
@@ -93,12 +121,32 @@
             "data/guitar_wt.wav"
         ],
         [
+            "data/hard.xbmr",
+            "data/hard.xbmr"
+        ],
+        [
+            "data/invader.wav",
+            "data/invader.wav"
+        ],
+        [
             "data/lofi_girl-studying.xbm",
             "data/lofi_girl-studying.xbm"
         ],
         [
+            "data/medium.xbmr",
+            "data/medium.xbmr"
+        ],
+        [
+            "data/nudoc.xbmr",
+            "data/nudoc.xbmr"
+        ],
+        [
             "data/nunomo_logo.xbmr",
             "data/nunomo_logo.xbmr"
+        ],
+        [
+            "data/pencil.xbmr",
+            "data/pencil.xbmr"
         ],
         [
             "data/piano_a2.wav",
@@ -157,6 +205,10 @@
             "examples/compressor_example.py"
         ],
         [
+            "examples/cube_test.py",
+            "examples/cube_test.py"
+        ],
+        [
             "examples/dither_test.py",
             "examples/dither_test.py"
         ],
@@ -201,8 +253,20 @@
             "examples/routing_example.py"
         ],
         [
+            "examples/sphere_test.py",
+            "examples/sphere_test.py"
+        ],
+        [
+            "examples/square_test.py",
+            "examples/square_test.py"
+        ],
+        [
             "examples/techno_example.py",
             "examples/techno_example.py"
+        ],
+        [
+            "font/u8g2_amstrad_cpc_extended.fnt",
+            "font/u8g2_amstrad_cpc_extended.fnt"
         ],
         [
             "fontloader.py",
@@ -231,6 +295,10 @@
         [
             "imagelib.py",
             "imagelib.py"
+        ],
+        [
+            "invader.py",
+            "invader.py"
         ],
         [
             "journal.py",
@@ -281,6 +349,14 @@
             "ntptime.mpy"
         ],
         [
+            "nudoc.py",
+            "nudoc.py"
+        ],
+        [
+            "overlay.py",
+            "overlay.py"
+        ],
+        [
             "pathlib.mpy",
             "pathlib.mpy"
         ],
@@ -291,6 +367,10 @@
         [
             "pem.py",
             "pem.py"
+        ],
+        [
+            "pem_extra.py",
+            "pem_extra.py"
         ],
         [
             "pem_keymap.py",
@@ -325,6 +405,10 @@
             "re_findall.py"
         ],
         [
+            "reader.py",
+            "reader.py"
+        ],
+        [
             "recorder.py",
             "recorder.py"
         ],
@@ -349,6 +433,10 @@
             "sound.py"
         ],
         [
+            "speaker_test.py",
+            "speaker_test.py"
+        ],
+        [
             "stt.py",
             "stt.py"
         ],
@@ -371,6 +459,10 @@
         [
             "voicerecorder.py",
             "voicerecorder.py"
+        ],
+        [
+            "wav_loader.py",
+            "wav_loader.py"
         ],
         [
             "wav_play.py",
