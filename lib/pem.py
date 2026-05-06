@@ -1,7 +1,6 @@
 #
 # Pem -- A editor for pocket deck
 # Copyright Nunomo LLC
-# MIT license
 
 # For standard Linux system, turn off this flag
 pdeck_enabled = True
@@ -15,6 +14,8 @@ open_pending_list= []
 try:
   import pem_keymap as custom_keymap
   custom_keymap.init_custom(km)
+  import pem_extra
+  pem_extra.init_custom(km)
 except Exception as e:
   print(e)
   pass
@@ -263,7 +264,7 @@ class editor:
           filename = '** New file **'
         filestat = f"{'*' if self.file.modified else '-'} L:{self.file_row+1}/{len(self.file.rows)} C:{self.file_col+1}"
 
-        max_filename_length = self.file.w - (len(filestat) + 5 + 2 + 2 + 1 + 1)
+        max_filename_length = self.file.w - (len(filestat) + 5 + 2 + 2 + 1 + 2)
         if len(filename) > max_filename_length:
           filename = filename[:max_filename_length]
         filestat = filename + " " + filestat
@@ -509,6 +510,13 @@ class editor:
     if self.search_info.matched_query:
       self.open_input_line_dialog("Replace","Replace? y/n (q for quit)", self.process_replace_yn, ["y","n","q"])
     
+  def process_revert_yn(self, answer):
+    if answer.chars == b"n":
+      return
+    self.process_open_file(self.file.filename.encode('utf-8'), linenum = self.file_row, colnum = self.file_col, force = True)
+    # We don't need the old file
+    del self.file_list[0]
+        
   def process_replace_yn(self, answer):
     #print(f"Answer: {answer.decode()}")
     if answer.chars == b"q":
@@ -544,10 +552,10 @@ class editor:
     #self.open_input_line_dialog('Open file','Filename', self.process_open_file, answer_list = None, default_str=item.encode('utf-8'))
     self.process_open_file(item.encode('utf-8'))
     
-  def process_open_file(self, name, linenum = 0, colnum = 0):
+  def process_open_file(self, name, linenum = 0, colnum = 0, force = False):
     #print(f"Opening.. file={name.decode()}")
 
-    if name.decode() == self.file.filename or self.switch_buf_if_exists(name.decode()):
+    if not force and (name.decode() == self.file.filename or self.switch_buf_if_exists(name.decode())):
       self.render_main_text(True)
       self.jump_to_position(self.file_row, self.file_col, 1, False)
       return
@@ -941,7 +949,9 @@ class editor:
           self.set_message('File write error')
         else:
           self.set_message(f"{total} bytes written")
-
+    # C-x C-v to revert change
+    if keys in km.map['revert']:
+      self.open_input_line_dialog("Revert","Revert current file? y/n", self.process_revert_yn, ["y","n"])
     # C-x C-f to open file
     if keys in km.map['open']:
       if len(open_pending_list) > 0:
@@ -1332,7 +1342,6 @@ class editor_file:
     self.modified = False
     self.filename = filename
 
-
   def open(self, linenum = 0, colnum = 0):
     
     filename = self.filename
@@ -1347,6 +1356,8 @@ class editor_file:
     elif self.filename != None and self.filename[-3:] == ".py":
       self.mode = "py"
     if file_exists(filename):
+      if pdeck_enabled:
+        pdeck.shared_filelist(filename)
       try:
         with open(filename, "r") as f:
           for line in f:
@@ -2259,6 +2270,8 @@ def main(vs, args_in):
           colnum = int(colnum)
       if not file_exists(filename):
         filename = None
+        linenum = 0
+        colnum = 0
 
 
   try: 

@@ -16,6 +16,140 @@ import re
 
 API_KEY_FILENAME = "/config/openai_api_key"
 
+def file_exists(name):
+  if name == None:
+    return False
+  try:
+    os.stat(name)
+    return True
+  except OSError:
+    return False
+
+def parse_inline_directives(message, references, images, args, vs):
+  idx = 0
+  result = ""
+  changed = False
+
+  while True:
+    start = message.find('[[', idx)
+    if start == -1:
+      result += message[idx:]
+      break
+
+    end = message.find(']]', start)
+    if end == -1:
+      result += message[idx:]
+      break
+
+    result += message[idx:start]
+    block = message[start+2:end].strip()
+    handled = False
+
+    if len(block) > 0 and block[0] == '-':
+      try:
+        opt_args = block.split()
+      except Exception:
+        opt_args = []
+
+      i = 0
+      ok = True
+      while i < len(opt_args):
+        opt = opt_args[i]
+
+        if opt == '-m' or opt == '--model':
+          if i + 1 < len(opt_args):
+            args.model = opt_args[i + 1]
+            i += 2
+            handled = True
+          else:
+            print("Inline option error: -m requires a value", file=vs)
+            ok = False
+            break
+
+        elif opt == '-j' or opt == '--jp':
+          args.jp = True
+          i += 1
+          handled = True
+
+        elif opt == '-c' or opt == '--clipboard':
+          args.clipboard = True
+          i += 1
+          handled = True
+
+        elif opt == '-nf' or opt == '--no-format':
+          args.no_format = True
+          i += 1
+          handled = True
+
+        elif opt == '-n' or opt == '--nosave':
+          args.nosave = True
+          i += 1
+          handled = True
+
+        elif opt == '-v' or opt == '--voice':
+          args.voice = True
+          i += 1
+          handled = True
+
+        elif opt == '-vt' or opt == '--voice-type':
+          if i + 1 < len(opt_args):
+            args.voice_type = opt_args[i + 1]
+            i += 2
+            handled = True
+          else:
+            print("Inline option error: -vt requires a value", file=vs)
+            ok = False
+            break
+
+        elif opt == '-i' or opt == '--image':
+          i += 1
+          handled = True
+          while i < len(opt_args) and not opt_args[i].startswith('-'):
+            img_path = opt_args[i]
+            if img_path.startswith("http://") or img_path.startswith("https://"):
+              images.append(img_path)
+            else:
+              try:
+                with open(img_path, 'rb') as f:
+                  images.append(f.read())
+              except Exception:
+                print(f'Inline option error when opening image {img_path}', file=vs)
+            i += 1
+
+        elif opt == '-f' or opt == '--file':
+          print("Inline option note: -f is not supported in [[...]] blocks", file=vs)
+          i += 1
+          while i < len(opt_args) and not opt_args[i].startswith('-'):
+            i += 1
+          handled = True
+
+        else:
+          print(f"Inline option note: unsupported option {opt}", file=vs)
+          i += 1
+          handled = True
+
+      if ok:
+        changed = True
+
+    else:
+      if file_exists(block):
+        try:
+          with open(block, 'r') as f:
+            references.append("---- " + block + " ----\n" + f.read())
+          handled = True
+          changed = True
+        except Exception as e:
+          print(f"Error reading inline reference {block}: {e}", file=vs)
+      else:
+        print(f"Inline reference file not found: {block}", file=vs)
+
+    if not handled:
+      result += message[start:end+2]
+
+    idx = end + 2
+
+  return result, changed
+
 class chatgpt_util:
   def __init__(self,vs):
     self.vs = vs
@@ -44,7 +178,7 @@ class chatgpt_util:
 
 
 
-  def make_json(self, message, references, images=None, model="gpt-5.2", instructions = None):
+  def make_json(self, message, references, images=None, model="gpt-5.5", instructions = None):
     content_items = []
     
     # Add text message
@@ -122,40 +256,98 @@ class chatgpt_util:
     return None
 
   def stt(self, filename):
-    """Transcribes audio using Whisper"""
+    """Transcribes audio using Whisper (Stream Upload)"""
     boundary = "----MicroPythonPdeckBoundary"
     try:
-      with open(filename, 'rb') as f:
-        content = f.read()
+      file_size = os.stat(filename)[6]
     except Exception as e:
-      print(f"STT Error reading file: {e}", file=self.vs)
+      print(f"STT Error reading file stat: {e}", file=self.vs)
       return None
     
-    body = (
+    header_bytes = (
         '--' + boundary + '\r\n' +
         'Content-Disposition: form-data; name="file"; filename="audio.wav"\r\n' +
         'Content-Type: audio/wav\r\n\r\n'
-    ).encode('utf-8') + content + (
+    ).encode('utf-8')
+    
+        #'Content-Disposition: form-data; name="model"\r\n\r\nwhisper-1\r\n' +
+    footer_bytes = (
         '\r\n--' + boundary + '\r\n' +
-        'Content-Disposition: form-data; name="model"\r\n\r\nwhisper-1\r\n' +
+        'Content-Disposition: form-data; name="model"\r\n\r\ngpt-4o-mini-transcribe\r\n' +
         '--' + boundary + '--\r\n'
     ).encode('utf-8')
     
-    headers = {
-        'Content-Type': 'multipart/form-data; boundary=' + boundary,
-        'Authorization': 'Bearer ' + self.api_key
-    }
-    
-    print("Uploading audio to STT...", file=self.vs)
-    res = requests.post(self.stt_url, headers=headers, data=body)
-    if res.status_code == 200:
-      text = res.json().get('text')
-      res.close()
-      return text
-    else:
-      print(f"STT Error: {res.status_code} {res.text}", file=self.vs)
-      res.close()
+    content_length = len(header_bytes) + file_size + len(footer_bytes)
+    print("Uploading audio to STT (streaming)...", file=self.vs)
+
+    import usocket
+    try:
+      import ussl as ssl
+    except ImportError:
+      import ssl
+
+    addr = usocket.getaddrinfo("api.openai.com", 443)[0][-1]
+    s = usocket.socket()
+    try:
+      s.connect(addr)
+      try:
+        s = ssl.wrap_socket(s, server_hostname="api.openai.com")
+      except TypeError:
+        s = ssl.wrap_socket(s)
+        
+      req_head = (
+          "POST /v1/audio/transcriptions HTTP/1.0\r\n"
+          "Host: api.openai.com\r\n"
+          "Connection: close\r\n"
+          f"Content-Type: multipart/form-data; boundary={boundary}\r\n"
+          f"Content-Length: {content_length}\r\n"
+          f"Authorization: Bearer {self.api_key}\r\n\r\n"
+      ).encode('utf-8')
+
+      s.write(req_head)
+      s.write(header_bytes)
+
+      buf = bytearray(16384)
+      with open(filename, 'rb') as f:
+        while True:
+          sz = f.readinto(buf)
+          if not sz:
+            break
+          s.write(memoryview(buf)[:sz])
+          
+      s.write(footer_bytes)
+
+      l = s.readline()
+      if not l:
+        print("STT Error: Empty response", file=self.vs)
+        return None
+        
+      status_code = int(l.split(None, 2)[1])
+      
+      while True:
+        line = s.readline()
+        if not line or line == b"\r\n":
+          break
+          
+      body_chunks = []
+      while True:
+        sz = s.readinto(buf)
+        if not sz:
+          break
+        body_chunks.append(bytes(memoryview(buf)[:sz]))
+      body = b"".join(body_chunks)
+
+      if status_code == 200:
+        return ujson.loads(body).get('text')
+      else:
+        print(f"STT Error: {status_code} {body.decode('utf-8')}", file=self.vs)
+        return None
+
+    except Exception as e:
+      print(f"STT Socket Error: {e}", file=self.vs)
       return None
+    finally:
+      s.close()
 
   def tts(self, text, filename, voice='alloy'):
     """Converts text to speech"""
@@ -278,17 +470,18 @@ def main(vs, args_in):
   #vs = pu.vscreen_stream()
   parser = argparse.ArgumentParser(
             description='ChatGPT query' )
+  parser.add_argument('-a', '--agent', action='store_true', help='Enable Agent Mode')
   parser.add_argument('-n', '--nosave',action='store_true',help='do not save the result')
   parser.add_argument('-nf', '--no-format',action='store_true',help='do not format text (No bold)')
   parser.add_argument('-c', '--clipboard', action='store_true', help='use clipboard as reference text')
   parser.add_argument('-j', '--jp',action='store_true',help='Answer in Japanese')
   parser.add_argument('-f', '--file',nargs='+',action='store',help='Attach file(s) as reference. file1 file2...')
   parser.add_argument('-i', '--image', nargs='+', action='store',help='Attach image file(s) or image url(s). img1 img2...')
-  parser.add_argument('-m', '--model',action='store',default='gpt-5.4-mini',help='Model to use (e.g. gpt-5-mini)')
+  parser.add_argument('-m', '--model',action='store',default='gpt-5.4',help='Model to use (e.g. gpt-5-mini)')
   parser.add_argument('-v', '--voice',action='store_true',help='Use voice mode (STT and TTS)')
   parser.add_argument('-vt', '--voice-type',action='store',default='coral',help='Voice type for TTS (alloy, coral, echo, fable, onyx, nova, shimmer)')
   parser.add_argument('content', nargs='*',help='Content to ask')
-  parser.add_argument('-q', nargs='+',help='Content to ask, use this when you want to specify content explicitly.')
+  parser.add_argument('-q', nargs='+',help='Content to ask, use this when you want to specify content explicitly. If you specify a filename, it uses file content as a main content.')
 
   args = parser.parse_args(args_in[1:])
 
@@ -299,7 +492,7 @@ def main(vs, args_in):
   message = ""
   instructions = None
 
-  if args.voice:
+  if args.voice: # and not args.q and not args.content:
     rec_file = "/sd/work/voice_rec.wav"
     record_audio(vs, rec_file)
     print("Transcribing...", file=vs)
@@ -316,14 +509,67 @@ def main(vs, args_in):
     if args.content:
       message += ' '.join(args.content)
     if args.q:
-      message += ' '.join(args.q)
+      if len(args.q) == 1 and file_exists(args.q[0]):
+        with open( args.q[0],"r") as f:
+          message = f.read()
+      else:
+        message += ' '.join(args.q)
   if len(message) == 0:
     return
+
+  references = []
+  images = []
+
+  message, _ = parse_inline_directives(message, references, images, args, vs)
 
   ex1 = " and answer in Japanese" if args.jp else  ""
   message = message + ex1
 
-  references = []
+  ctime = time.gmtime(time.time() + pu.timezone * 60 * 15)
+  time_str = f"[User current time: {ctime[0]:04d}-{ctime[1]:02d}-{ctime[2]:02d} {ctime[3]:02d}:{ctime[4]:02d}]\n"
+  message = time_str + message
+
+  if args.agent:
+    idx = 0
+    while True:
+        start = message.find('[[', idx)
+        if start == -1:
+            break
+        end = message.find(']]', start)
+        if end == -1:
+            break
+        match = message[start+2:end]
+        idx = end + 2
+        if file_exists(match):
+            try:
+                with open(match, 'r') as f:
+                    references.append("---- " + match + " ----\n" + f.read())
+            except Exception as e:
+                print(f"Agent Mode: Error reading {match}: {e}", file=vs)
+        else:
+            print(f"Agent Mode: File {match} not found", file=vs)
+            
+    for auto_file in ["/sd/lib/data/agent_mode.md", "/sd/Documents/pd/README.md"]:
+        if file_exists(auto_file):
+            try:
+                with open(auto_file, 'r') as f:
+                    references.append("---- " + auto_file + " ----\n" + f.read())
+            except Exception:
+                pass
+                
+    agent_instruction = (
+        "CRITICAL INSTRUCTION: You are an autonomous agent operating on a MicroPython device. "
+        "You MUST execute commands by strictly using the markdown code blocks defined in agent_mode.md."
+        "(`[type]:filename`, `python:execute`, `iterate`). "
+    )
+    
+    if instructions:
+        instructions += "\n\n" + agent_instruction
+    else:
+        instructions = agent_instruction
+        
+    message += "\n\n[SYSTEM NOTE: Follow the critical rules in agent_mode.md to perform actions.]"
+
   if args.file:
     files = args.file
     for file in files:
@@ -341,7 +587,6 @@ def main(vs, args_in):
   if args.clipboard:
     references.append(pdeck.clipboard_paste().decode("utf-8"))
   
-  images = []
   if args.image:
     image_paths = args.image
     for img_path in image_paths:
@@ -354,8 +599,14 @@ def main(vs, args_in):
         except Exception as e:
           print(f'Error when opening image {img_path}', file=vs)
           return
-
-  raw_response = gpt.ask(gpt.make_json(message, references, images, args.model, instructions = instructions))
+  model = args.model
+  if model in ('m','medium'):
+    model = 'ngpt-5.4'
+  elif model in ('h','high'):
+    model = 'gpt-5.5'
+  elif model in ('f','fast'):
+    model = 'gpt-5.4-mini'
+  raw_response = gpt.ask(gpt.make_json(message, references, images, model, instructions = instructions))
   if not raw_response:
     return
   
@@ -386,8 +637,9 @@ def main(vs, args_in):
 
     if args.nosave:
       return
-    ctime = time.gmtime(time.time()-pu.timezone)
+    ctime = time.gmtime(time.time()+pu.timezone*60*15)
     filename = f"/sd/log/gptlog{ctime[1]:02}{ctime[2]:02}_{ctime[3]:02}{ctime[4]:02}"
+    pdeck.shared_filelist(filename)
     pdeck.clipboard_copy(filename)      
     with open(filename,"w") as f:
       f.write(message)
@@ -396,4 +648,68 @@ def main(vs, args_in):
     
     print(f"Saved to {filename} and the filename copied to clipboard", file = vs)
       
-  
+  if args.agent:
+    idx = 0
+    while True:
+      start = raw_response.find("```", idx)
+      if start == -1:
+        break
+      end = raw_response.find("```", start + 3)
+      if end == -1:
+        break
+        
+      block = raw_response[start+3:end]
+      idx = end + 3
+      
+      first_nl = block.find('\n')
+      if first_nl == -1:
+        continue
+        
+      lang_tag = block[:first_nl].strip()
+      code = block[first_nl+1:]
+      
+      if ":" in lang_tag and lang_tag != "python:execute":
+        out_filename = lang_tag.split(":", 1)[1].strip()
+        print(f"{el.set_font_color(1)}Agent: Saving to {out_filename}{el.reset_font_color()}", file=vs)
+        
+        if file_exists(out_filename):
+          try:
+            os.stat("/sd/backup")
+          except OSError:
+            try:
+              os.mkdir("/sd/backup")
+            except:
+              pass
+          base = out_filename.split("/")[-1]
+          ctime = time.gmtime(time.time()+pu.timezone*60*15)
+          backup_name = f"/sd/backup/{base}_{ctime[1]:02}{ctime[2]:02}_{ctime[3]:02}{ctime[4]:02}"
+          try:
+            os.rename(out_filename, backup_name)
+            print(f"{el.set_font_color(1)}Agent: Backing up original file to {backup_name}{el.reset_font_color()}", file=vs)
+          except:
+            pass
+            
+        try:
+          with open(out_filename, "w") as f:
+            f.write(code)
+        except Exception as e:
+          print(f"{el.set_font_color(1)}Agent: Failed to write {out_filename}: {e}{el.reset_font_color()}", file=vs)
+          
+      elif lang_tag == "python:execute":
+        print(f"{el.set_font_color(1)}Agent: Executing python block...{el.reset_font_color()}", file=vs)
+        try:
+          exec_locals = {'vs': vs, 'pdeck': pdeck}
+          exec(code, globals(), exec_locals)
+        except Exception as e:
+          print(f"{el.set_font_color(1)}Agent: Execution Error: {e}{el.reset_font_color()}", file=vs)
+          
+      elif lang_tag == "iterate":
+        print(  f"{el.set_font_color(1)}Agent: Iterating...{el.reset_font_color()}", file=vs)
+        iter_args = ['gpt'] + code.split()
+        for i, item in enumerate(iter_args):
+          if item == '-q':
+            iter_args = iter_args[0:i+1] + [" ".join(iter_args[i+2:])]
+            break
+        print(f"{el.set_font_color(1)}Agent: Calling main with {iter_args}{el.reset_font_color()}", file=vs)
+        main(vs, iter_args)
+

@@ -28,7 +28,7 @@ class MusicGUI:
     #self.mode = "albums"  # "albums" or "tracks"
 
     # Playback
-    self.wp = wav_play.wav_play(20000)  # same as ref 2
+    self.wp = wav_play.wav_play(80000)  # same as ref 2
     self.playing = False
     self.paused = False
 
@@ -123,11 +123,13 @@ class MusicGUI:
 
   def next_track(self):
     ret = self.menu_ui.move_cursor(1)
-    self.play_selected()
+    if ret:
+      self.play_selected()
 
   def prev_track(self):
     ret = self.menu_ui.move_cursor(-1)
-    self.play_selected()
+    if ret:
+      self.play_selected()
 
 
   def draw_header(self):
@@ -201,10 +203,10 @@ class MusicGUI:
     self.current_tick = time.ticks_us()
     self.time_diff = (self.current_tick - self.last_tick)
 
-    self.menu_ui.draw_menu(offset=50)
+    self.menu_ui.draw_menu(y_offset=50)
     self.draw_header()
     self.draw_play_animation(0, 0)
-    self.menu_ui.draw_cursor(self.time_diff, offset=50)
+    self.menu_ui.draw_cursor(self.time_diff, y_offset=50)
     self.draw_playbar()
     self.draw_message()
 
@@ -288,7 +290,7 @@ class MusicGUI:
         # end reached
         self.playing = False
         if self.menu_ui.depth == 1:
-          if self.menu_ui.get_cursor_pos() < self.menu_ui.get_current_list_len():
+          if self.menu_ui.get_cursor_pos() < self.menu_ui.get_current_list_len()-1:
             self.menu_ui.move_cursor(1)
             self.play_selected()
 
