@@ -46,5 +46,9 @@ Input IP address of Pocket deck and password, then click the **Connect device** 
 
 ## iOS app
 
-iOS app has the same features as web client. Download 'pocket deck' app from app store.
+iOS app has the same features as web client. Download 'Nunomo Pocket Deck' app from app store.
+
+[‎Nunomo Pocket Deck App - App Store](https://apps.apple.com/us/app/nunomo-pocket-deck/id6765476685)
+
+
 
