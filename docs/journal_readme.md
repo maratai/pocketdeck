@@ -11,11 +11,10 @@ The default filename is `journal.md`
 journal [filename] 
 ```
 
-`r`: Reload chart
-Up and Down: Move to previous or next month
-Left or Right: Change graph
-mouse : Show date indicator
-'q': Quit
+- `r`: Reload chart
+- Up and Down: Move to previous or next month
+- Left or Right: Change graph
+- 'q': Quit
 
 ## Markdown Syntax
 
