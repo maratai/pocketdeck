@@ -21,15 +21,15 @@ KEY_BS = b'\b'
 KEY_PAGE_UP = b'\x1b[5~'
 KEY_PAGE_DOWN = b'\x1b[6~'
 
-GRID_X = 8
-GRID_Y = 28
-CELL = 23
+GRID_X = 6
+GRID_Y = 22
+CELL = 24
 GRID_W = CELL * 9
 GRID_H = CELL * 9
 
 SIDE_X = GRID_X + GRID_W + 16
-SIDE_Y = GRID_Y + 10
-STATUS_H = 24
+SIDE_Y = GRID_Y + 14
+STATUS_H = 20
 MAX_MISTAKES = 3
 
 STATE_TITLE = 0
@@ -510,7 +510,7 @@ class NudocGame:
           self.fixed[y][x] = 1
         else:
           self.fixed[y][x] = 0
-    print(self.solution)
+    #print(self.solution)
     
   def remove_cells(self, holes):
     for y in range(9):
@@ -747,13 +747,15 @@ class NudocGame:
     self.v.draw_box(0, 0, 400, STATUS_H)
     self.v.set_draw_color(0)
     self.v.set_font("u8g2_font_profont15_mf")
+    #self.v.draw_str(300,239,f"Score:{self.score}")
+
     txt = " Score:{}  Mistakes:{}/{}  Elapsed:{}".format(
       self.score,
       self.mistakes,
       MAX_MISTAKES,
       self.elapsed_text(),
     )
-    self.v.draw_str(8, 17, txt)
+    self.v.draw_str(8, 16, txt)
     self.v.set_dither(8)
     self.v.draw_line(0, STATUS_H - 1, 399, STATUS_H - 1)
     self.v.set_dither(16)
@@ -806,7 +808,7 @@ class NudocGame:
         if mask == 0:
           continue
         sx = GRID_X + x * CELL + 3
-        sy = GRID_Y + y * CELL + 11
+        sy = GRID_Y + y * CELL + 10
         n = 1
         self.v.set_draw_color(0)
         while n <= 9:
@@ -823,7 +825,7 @@ class NudocGame:
           if mask & bit:
             nx = (n - 1) % 3
             ny = (n - 1) // 3
-            self.v.draw_str(sx + nx * 6, sy + ny * 6, str(n))
+            self.v.draw_str(sx + nx * 6, sy + ny * 7, str(n))
           n += 1
     self.v.set_font_mode(1)
 
@@ -837,7 +839,7 @@ class NudocGame:
         if n == 0:
           continue
         px = GRID_X + x * CELL + 7
-        py = GRID_Y + y * CELL + 19
+        py = GRID_Y + y * CELL + 20
         if self.fixed[y][x]:
           self.v.set_draw_color(1)
           self.v.draw_str(px, py, str(n))
@@ -1223,7 +1225,7 @@ class NudocGame:
     self.draw_numbers()
     self.draw_grid_lines()
     self.draw_side_numbers()
-    self.draw_difficulty(275, 50)
+    self.draw_difficulty(285, 50)
     self.draw_completion_effect()
     self.draw_bonus_message()
 
