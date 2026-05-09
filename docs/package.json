@@ -52,11 +52,11 @@
     "files": [
         {
             "path": "audio_module.md",
-            "md5": "e859652be1043fcb790e5b72498aafbd"
+            "md5": "45a5f20af225bb53a4d556daa32a40fe"
         },
         {
             "path": "app_development.md",
-            "md5": "139578a93b77471096eb94ac08f408bf"
+            "md5": "39d8bd4062a2d1dd96c120050467d4da"
         },
         {
             "path": "getting_started.md",
@@ -64,7 +64,7 @@
         },
         {
             "path": "hid_usage_keyboard.h",
-            "md5": "5e9bceea15a1ef254d93b3a886488668"
+            "md5": "13b623b04e5d0173e5594ede3deb6e3e"
         },
         {
             "path": "journal_readme.md",
@@ -76,7 +76,7 @@
         },
         {
             "path": "README.md",
-            "md5": "dd273b59948a0eaf6f3f945b06e2cddd"
+            "md5": "c4f80ef93cd71254ca64b6e1313dd04a"
         },
         {
             "path": "ssh_scp_readme.md",
@@ -84,7 +84,7 @@
         },
         {
             "path": "pie.md",
-            "md5": "7463667c185a401d71d4ea895962ecf7"
+            "md5": "dabfbfccfdcd3eb2ac9d2a4d5ff77c9f"
         },
         {
             "path": "music_readme.md",
@@ -96,7 +96,7 @@
         },
         {
             "path": "pem_readme.md",
-            "md5": "009df2d5a106bb17e59f0b22f1c941b7"
+            "md5": "eda7f136a3e01be677bd895bf7154f59"
         }
     ],
     "version": "1.0"
