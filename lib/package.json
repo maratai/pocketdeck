@@ -536,7 +536,7 @@
         },
         {
             "path": "analog_clock.py",
-            "md5": "3bdd7fdf1cc38d519799c5f8b60f1786"
+            "md5": "2ec5b7d67243d1ec1f4e4af796181752"
         },
         {
             "path": "ble_manager.py",
@@ -544,15 +544,15 @@
         },
         {
             "path": "tasks.py",
-            "md5": "4d8f8621b015cd08ca2853b93e802e5f"
+            "md5": "9e16f82298794e02bddde5f2977cf6a6"
         },
         {
             "path": "invader.py",
-            "md5": "f870709f521723100d21c34d4f7d8144"
+            "md5": "917d0fca8c5864c5cef88408e9c858fc"
         },
         {
             "path": "wav_play.py",
-            "md5": "1e701515bc20669411cd2ae3ad2c43bf"
+            "md5": "1bbea8db75723f08e98e19e702890834"
         },
         {
             "path": "rmdir.py",
@@ -560,7 +560,7 @@
         },
         {
             "path": "nudoc.py",
-            "md5": "f55a2b742c1f116abf823847cf7e7693"
+            "md5": "bcfe16ad7bb313e70943f5ab59043e61"
         },
         {
             "path": "benchmark.py",
@@ -568,7 +568,7 @@
         },
         {
             "path": "gdrive.py",
-            "md5": "9ef8b6d34260fd37b7269f9ba392835f"
+            "md5": "557095e4dd376ecaff5c9240f339aba4"
         },
         {
             "path": "cpmv.py",
@@ -576,7 +576,7 @@
         },
         {
             "path": "ble_kb.py",
-            "md5": "c17d501fa1a29caad38e5cffe92ecc6f"
+            "md5": "74bf34ab5b26c14e94bcad862c592097"
         },
         {
             "path": "ntptime.mpy",
@@ -600,7 +600,7 @@
         },
         {
             "path": "journal.py",
-            "md5": "1ea9390b6ffa04df136ca1dd931d2b48"
+            "md5": "59b98b03b8e12dad6e975afb0272651f"
         },
         {
             "path": "wavplay.py",
@@ -620,7 +620,7 @@
         },
         {
             "path": "home.py",
-            "md5": "aa98bab0655d60df7d87570bc98fbdbd"
+            "md5": "37722e2bbed3c25136371115875b7843"
         },
         {
             "path": "anm.py",
@@ -632,11 +632,11 @@
         },
         {
             "path": "datetime.mpy",
-            "md5": "cec989192cf080e5ec6e3741f5a3a729"
+            "md5": "37bcc9dee573648dbaaee6a6a006075b"
         },
         {
             "path": "codec_config.py",
-            "md5": "6eb329f1350c16a3ea9470c895a6e851"
+            "md5": "093dec8724c34de2560964ea0bb15cd1"
         },
         {
             "path": "voicerecorder.py",
@@ -652,7 +652,7 @@
         },
         {
             "path": "pngreader.py",
-            "md5": "633a51452f3a5dc82802ebbeb49fd4f6"
+            "md5": "e47d614b69a0f54ebddaddd6df0939ff"
         },
         {
             "path": "setjpf.py",
@@ -660,11 +660,11 @@
         },
         {
             "path": "gpt.py",
-            "md5": "54ab9e6647c489fe6690394c18621d4f"
+            "md5": "78608cf1bf939e2f8c2cdd90e2c7ec5e"
         },
         {
             "path": "argparse.py",
-            "md5": "cbbfaceb5b4153ba8a3916c0cef78d96"
+            "md5": "2eac4aa11d66b654c5dc038546fa3207"
         },
         {
             "path": "fontloader.py",
@@ -676,11 +676,11 @@
         },
         {
             "path": "ls.py",
-            "md5": "83201acb4a049637ac4e6e78dc1e9227"
+            "md5": "3b051b76c202e4fb41894641a0da532d"
         },
         {
             "path": "pie.py",
-            "md5": "b21863bd8989496a23ccf2b039f94f20"
+            "md5": "d233e93b150b887a51b1dc7ffe75ef23"
         },
         {
             "path": "cd.py",
@@ -696,7 +696,7 @@
         },
         {
             "path": "home.mpy",
-            "md5": "751f85f1d025565b2704066837483b7f"
+            "md5": "0287bcbef1a80e7ec3ab723665a9a026"
         },
         {
             "path": "re_findall.py",
@@ -708,7 +708,7 @@
         },
         {
             "path": "reader.py",
-            "md5": "7d5aca7ab02669e39bcef1e94290cd94"
+            "md5": "939b068ffce6f1bce3ecefd8f6fa5d47"
         },
         {
             "path": "ls.mpy",
@@ -716,7 +716,7 @@
         },
         {
             "path": "music.py",
-            "md5": "84ae369b7b2d98ee75a190dbc0ff9136"
+            "md5": "4ca8441008be2cc6de187961d2b2e7a7"
         },
         {
             "path": "pem_keymap_default.py",
@@ -732,15 +732,15 @@
         },
         {
             "path": "wav_loader.py",
-            "md5": "d60e626cbfdbed3c38f717db561c8710"
+            "md5": "2ecea33b5fb892950ca0680f59530e7c"
         },
         {
             "path": "jp_input.py",
-            "md5": "42a7179908498f64d8f55dae3789f6bd"
+            "md5": "ddd450ad393310dcb005b5b7cbb6b752"
         },
         {
             "path": "pem.mpy",
-            "md5": "612ac45372fa7156323fb345cc0198ee"
+            "md5": "5f01a13c203e50ca23b63111f2a89397"
         },
         {
             "path": "update_updater.py",
@@ -748,11 +748,11 @@
         },
         {
             "path": "pem.py",
-            "md5": "48154089701b7136a51a88b4a27a0830"
+            "md5": "45ec2e1220da04388a54d1c38da29f88"
         },
         {
             "path": "recorder.py",
-            "md5": "a68420e3634ccdf41694f1de7c9f03c3"
+            "md5": "bce219ad447804632d19e0d6c3890b2a"
         },
         {
             "path": "cat.py",
@@ -788,7 +788,7 @@
         },
         {
             "path": "menu_ui.py",
-            "md5": "fb6e55ab4c805128ac855ba0cf6f39ba"
+            "md5": "cb7507fe53a6b8c568d859b8f0f84496"
         },
         {
             "path": "cp.py",
@@ -812,7 +812,7 @@
         },
         {
             "path": "zen_chamber.py",
-            "md5": "0582a9a8c3bffd86a308be5ba7cc0a88"
+            "md5": "860ee36b112efffb3f8e9d7b3ecf3c4c"
         },
         {
             "path": "font/u8g2_amstrad_cpc_extended.fnt",
@@ -820,7 +820,7 @@
         },
         {
             "path": "font/u8g2_lubb08_te.fnt",
-            "md5": "9dbe284a5abcb3b57156683f76927c83"
+            "md5": "403b7c60afcbc542149d2ca16557c025"
         },
         {
             "path": "font/u8g2_wedge.fnt",
@@ -828,7 +828,7 @@
         },
         {
             "path": "font/u8g2_lubb12_te.fnt",
-            "md5": "d20bede81a3e955aeef32598e2366912"
+            "md5": "91f02f1e06f4fdd1f7107e69e44cf679"
         },
         {
             "path": "data/ghost1.xbmr",
@@ -852,7 +852,7 @@
         },
         {
             "path": "data/invader.wav",
-            "md5": "e0f1a54b19d580095c0fa35c2a78b6a0"
+            "md5": "e33093a9c42bdb9d741c29644c991b60"
         },
         {
             "path": "data/ghost2.xbm",
@@ -864,7 +864,7 @@
         },
         {
             "path": "data/saw_wt.wav",
-            "md5": "b7577efac26796ebb8c7d2723d9f296f"
+            "md5": "cc8c0b62208223097f2e948527ff54dd"
         },
         {
             "path": "data/fireball.xbmr",
@@ -880,7 +880,7 @@
         },
         {
             "path": "data/square.wav",
-            "md5": "7c63447e6f56f6ed26a78a636ab1d550"
+            "md5": "aa933051a26da72e9b2144b0a77faa93"
         },
         {
             "path": "data/wifi-icon-disabled.xbm",
@@ -900,7 +900,7 @@
         },
         {
             "path": "data/cat2.xbm",
-            "md5": "59d2e9c4a1175c5a3bfa89586178da22"
+            "md5": "1f3b8b328aa1c0170b1277aaa3b9c342"
         },
         {
             "path": "data/response.xbmr",
@@ -912,11 +912,11 @@
         },
         {
             "path": "data/cat3.xbm",
-            "md5": "a15fdd972c2e099c3b0a1e3567772297"
+            "md5": "3404a25e5cb6abafb5478d72d6f4f46a"
         },
         {
             "path": "data/cat4.xbm",
-            "md5": "1f1d65f7186b80ad45d535b5caaf599c"
+            "md5": "c3bbd1c633c88f1f530d0ec5ec3c933f"
         },
         {
             "path": "data/nunomo_logo.xbmr",
@@ -932,11 +932,11 @@
         },
         {
             "path": "data/cat1.xbm",
-            "md5": "8be62bee11c9389a7f3a396c638b71ad"
+            "md5": "91ea51d418bae334e12390192ff5d48c"
         },
         {
             "path": "data/guitar_wt.wav",
-            "md5": "d380bc4732f14f9be0e9322e8c277c48"
+            "md5": "1d819c1d03c2f0c493a967806af0c440"
         },
         {
             "path": "data/hard.xbmr",
@@ -948,15 +948,15 @@
         },
         {
             "path": "data/lofi_girl-studying.xbm",
-            "md5": "868f6036351881cc4d3953f7de8deef6"
+            "md5": "57e9320643d5c4db0a86c2e9f6502af6"
         },
         {
             "path": "data/clear.wav",
-            "md5": "f9f8787c529aa68478e62ca517980b6a"
+            "md5": "ea5608b3d129ef5adb25f539e17f318a"
         },
         {
             "path": "data/piano_a2.wav",
-            "md5": "27c6f5ec7ccc0bab8f5f0bac7cd8ec0f"
+            "md5": "05c99c5ff90aeca1936c7a32159e035d"
         },
         {
             "path": "data/cat2.xbmr",
@@ -976,7 +976,7 @@
         },
         {
             "path": "examples/techno_example.py",
-            "md5": "a4a5d8ecfc8550532e701af6af7743cc"
+            "md5": "cfe9d4d3d14be63da995a77f4393fcf8"
         },
         {
             "path": "examples/hello_world.py",
@@ -1028,7 +1028,7 @@
         },
         {
             "path": "examples/sphere_test.py",
-            "md5": "ce2b747ec0a637881b2af2c80ab614b0"
+            "md5": "2704bffa697b280ef7b5814f8d2e36b1"
         },
         {
             "path": "examples/routing_example.py",

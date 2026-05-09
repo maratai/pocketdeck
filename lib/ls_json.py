@@ -9,7 +9,7 @@ def get_md5_of_file(file_path):
         # Read the file in chunks and update the hash object
         for chunk in iter(lambda: f.read(4096), b""):
             hash_md5.update(chunk)
-            return hash_md5.hexdigest()
+        return hash_md5.hexdigest()
 
 def list_files(directory="."):
     """Lists all files recursively and formats them into the requested JSON structure."""
