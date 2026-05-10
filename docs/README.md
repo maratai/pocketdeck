@@ -352,6 +352,24 @@ touch pad : scroll
 buttom buttons : page up, page down
 `B` button : quit
 
+### Flashcard
+
+Flash card is a flash card app for vocabulary.
+
+Sample word database file is shown below. If the line does not follow the syntax, it will be ignored, so this can be part of Markdown file.
+
+```
+## words list
+- judicious : Showing good judgement, wisely chosen
+- inscription : Words written or carved on a surface, like a stone, monument, or book.
+
+Extra comments will be ignored.
+```
+
+- Up : Reverse the content and the word.
+- Down : Open menu for read aloud and auto-generated example
+
+
 ### Invader
 
 `invader` is a invader game.

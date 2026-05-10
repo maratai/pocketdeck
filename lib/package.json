@@ -273,6 +273,10 @@
             "examples/texture_example.py"
         ],
         [
+            "flashcards.py",
+            "flashcards.py"
+        ],
+        [
             "font/u8g2_amstrad_cpc_extended.fnt",
             "font/u8g2_amstrad_cpc_extended.fnt"
         ],
@@ -641,6 +645,10 @@
         {
             "path": "voicerecorder.py",
             "md5": "4fb152f2b7c6908b849fcfacb1e6a153"
+        },
+        {
+            "path": "flashcards.py",
+            "md5": "a03df3ef7093c48d46c110b063336e67"
         },
         {
             "path": "mv.py",
