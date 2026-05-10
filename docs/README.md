@@ -1,24 +1,16 @@
-# Pocket Deck overview
+# Pocket Deck
 
 Pocket Deck is a tiny, customizable computer designed for everyday productivity and creative tinkering. It's great for fast text writing, personal organization, and small life-improvement utilities. 
 
-Its applications are not limited to writing; it can also make graphics and music applications.
+And the applications are not limited to writing, it is capable doing graphics and music applicaitons.
 
-Powered by MicroPython, it offers a powerful API, C-accelerated responsive graphics, and high-quality audio APIs, including sampler, wavetable, filter, mixer, and effectors. You can build and tailor features to fit your workflow wherever you are.
+Powered by MicroPython, it offers a powerful API, responsive graphics, and high-quality audio so you can build and tailor features to fit your workflow wherever you are.
 
-Pocket deck is designed for standalone use. You don't need PC for application development. You can write Python code in the editor and test it without PC.
-
-Internet connectivity allows you to ask questions to AI, sync with a PC for file transfer, copy and paste, screen casting, and cloud storage integration with Google Drive.
-
-![Product image](../images/pocketdeck.jpg)
+![Product image](images/pocketdeck.jpg)
 
 # Purchase
 
 https://shop.nunomo.net
-
-# Discord
-
-https://discord.gg/58DWVVTP
 
 # Features
 
@@ -30,7 +22,7 @@ https://discord.gg/58DWVVTP
 - Stereo built-in speaker
 - Stereo MEMS Microphone
 - LEDs
-- SD card slot
+- SD card slot (Up to 32GB, SDXC is not supported)
 - Expansion port
 - USB-A for USB keyboard, and USB-C for charging.
 - RTC clock to keep date and time
@@ -39,73 +31,50 @@ https://discord.gg/58DWVVTP
 
 ### USB keyboard & cable (Required)
 
-You need a USB keyboard and cable to operate the device. If you want a wireless connection, use a wireless dongle.
-
-**Note**: Even though Pocket Deck is power efficient, some USB keyboards draw current a lot and it reduces battery life. Here are the same examples:
-
-- USB keyboard charges its battery when it's connected. Use wireless dongle or BLE mode to reduce power consumption.
-
-- USB keyboard with many full color LEDs. (It's knows full color LED array consumes power)
-
-
-### BLE keyboard
-
-BLE keyboards are supported, but they use more DRAM memory, not PSRAM. A wireless dongle for a USB keyboard will save memory.
-
-If you want to use BLE keyboard, edit [[/main.py]] and uncomment ble_kb module. It will be launched on screen 9 and start BLE scanning. Classic Bluetooth keyboards are not supported.
-
-To check the connection, switch screen to 9.
-`KB ready` means the connection is established. The second LED (green) shows the status of BLE keyboard.
-
+You need USB keyboard and cable to operate the device.
 
 ### LiPo battery (Optional, recommended)
 
-There is JST-PH connector on the main PCB. You can install LiPo battery. LiPo has to be 1 cell(3.7V). 3000mAh or more capacity is recommended.
-
+There is JST-PH connector on the main PCB. You can install LiPo battery. Around 3000mAh to 4000mAh is recommended. (Put some Amazon link here)
 Battery operation is recommended.
-
-Examples:
-https://a.co/d/06c7H5FC
-https://a.co/d/07asqJnc
-
 
 ### Magsafe stand (Optional, recommended)
 
-Adding a MagSafe sticker to the back makes the device much more convenient. Place the sticker at the top center. There is a Wi-Fi antenna at the bottom of the unit, so avoid placing the sticker there.
+Putting Magsafe sticker at back makes the device much more convenient. Put Magsafe sticker at the back. Position should be at top-center. There is a WiFi anntena at the botttom of the unit. Avoid to put the sticker at the bottom.
 
 ### Disassemble process
 
-The following is an example of the disassembly process for installing a LiPo battery.
+Following example is disassemble process to install LiPo battery.
 
-1. Remove SD card and remove three screws on the top plate.
+1. Remove three screws on the top plate.
 
-2. Remove the front panel. The front panel and the main panel are connected by 0.1-inch pins, so you can simply pull the panel off.
+2. Remove front panel. Front panel and main panel are conntected by 0.1 inch pins. You can just pull the panel.
 
-3. Remove the main board. The board is just sitting in the case, with no screws. Use the SD slot or the other holes on the side of the case to get some leverage.
+3. Remove main board. The board is just sitting on the case, no screws. Use SD slot or the other holes at the side of the case to get some leverage.
 
-4. Install the LiPo battery. Preferably, use double-sided tape to secure the battery.
+4. Install LiPo battery that you have. Preferrably use some double-sided tape to stick the battery.
 
-5. Install the main board. There is a hole on the right side for the LiPo battery cable.
+5. Install the main board. There is a hole at the  right side for Lipo Battery cable.
 
-6. Connect the LiPo battery cable to the main panel. It uses a JST-PH connector. **Check the battery polarity before connecting it! There is no standard polarity for LiPo batteries, so it may be reversed. The PCB has “+” and “-” marks.**
+6. Connect LiPo battery cable to the main panel. It's JST-PH connector. ** Check polarity of the battery before you connect it! There is no standard polarity in LiPo batteries, so it could be opposite. There are "+" and "-" marks on the PCB board. **
 
+7. Install the front panel. Make sure to align pin headers.
 
-7. Install the front panel. Make sure to align the pin headers.
-
-8. Replace the screws.
+8. Put on screws.
 
 
 ## Software overview
 
-- A powerful text editor written entirely in MicroPython. See `[[pem_readme.md]]` for details.
+- A powerful text editor 100% written by MicroPython. See [[pem_readme.md]] for detail.
 - Some utilities written by MicroPython, such as journal to chart, clock, calendar and kitchen timer.
-- Graphics and audio modules optimized for performance and written in C.
+- Graphics and audio modules for optimized performance written by C.
 - Powerful terminal which supports a lot of escape sequence. This enables practical SSH experience.
-- A powerful audio engine; the core is written in C for performance.
-  - Stream, Sampler, and Wavetable
-  - Filter, Compressor, Delay, and Reverb
+
+- Powerful audio engine, core is written by C for performance.
+  - Stream, Sampler and Wavetable
+  - Filter, Compressor, Delay and Reverb
   - Flexible routing
-  - A Tidal Cycles/Strudel-inspired frontend sequencer that provides flexible music sequencing and sample-accurate timing
+  - Tidal Cycles/Strudel inspired frontend sequencer gives flexible music sequencing, sample accurate timings
 
 - Up to 10 virtual screens. You can use them for multi-tasking, for example:
   - Screen 1: Micropython interactive shell(REPL)
@@ -125,15 +94,15 @@ Pocket deck has touch buttons on the front panel.
 
 Button names | Description
 -----|-----
-Up, Down, Right and Left | These work as arrow keys. If the application supports it, the arrow keys can also be used like a dial by circling your finger. See `get_tp_keys()` for details.
+Up, Down, Right and Left | It works as arrow keys. Arrow keys also can be used as like a dial by circling finger, if the application supports it. See get_tp_keys() for detail.
 A | Enter
 B | Backspace
-Square shaped button (Left) | Left mouse button, if supported by the app
-Square shaped button (Right) | Right mouse button, if supported by the app
-touch pad | Can be used as a touch pad (mouse), if supported by the app
-`<` | Go to the previous screen
-`>` | Go to the next screen
-Slide bar at the right side | Scrolls the terminal screen to show previous messages. If the terminal is in raw mode (`esclib.raw_mode(True)`), it works as the Up/Down keys.
+Square shaped button (Left) | mouse left button if the app supports it
+Square shaped button (Right) | mouse right button if the app supports it
+touch pad | This can be used as a touch pad (mouse) if the application supports it.
+`<` | Go to previous screen
+`>` | Go to next screen
+Slide bar at the right side | It scrolls the terminal screen to see previous messages. If the terminal sets as raw mode (esclib.raw_mode(True)), it works as Up/Down keys. 
 
 Pocket deck has LEDs on the left side and it can be used for status indications.
 
@@ -146,25 +115,23 @@ There is a power button next to touchpad.
 
 Press the button one time to power up the device with Lipo battery. It's always on when it's connected to power supply.
 
-Press the button twice, like a double click, to shut down the device.
+Press the button two times (like double click) to shutdown the device.
+
+
 
 ## System shortcuts
 
-`C-a` means Control + A.  
-`S-C-a` means Shift + Control + A.
-
-- `C-[0-9]`: Switch screens
-- `C-Left`, `C-Right`, or the left/right touch buttons on the device: Switch to the next or previous screen
-- `C-Up` or `C-Down`: Scroll on the console
-- `S-C-q`: Force-quit the running application. You should avoid this as much as possible, because applications are not protected like normal OSes such as Linux. For graphics applications, try `S-C-d` first.
-- `S-C-r`: Restart the device
-- `S-C-i`: Invert the screen colors
-- `S-C-d`: Detach the screen (suspend the application) for graphical applications. It is useful when the application goes out of control due to a bug or other reason. It is safer than Shift+Ctrl-Q.
-- `S-C-=`: Increase the font size. Unless the application is designed to react to font-size changes, restarting the application is usually necessary.
-- `S-C--`: Decrease the font size
-- `S-C-c`: Copy the current line to the system clipboard. This is useful in text applications.
-- `S-C-v`: Paste data from the system clipboard. Note the length of the data is limited due to input buffer length. The application support is needed to paste large data.
-
+- C-[0-9] : (Control + 0-9) Switch screen
+- C-Left or C-Right or left or right touch button on the device : Switch to next or previous screen
+- C-Up or C-Down : Scroll on console
+- S-C-q : Forcefully quit the running application. You should avoid this as much as possible, because all applications are not protected like normal OSes such as Linux. For graphics application, try S-C-d first.
+- S-C-r : (Shift + Control + R) Restart the device
+- S-C-i : Invert color of the screen
+- S-C-d : Detatch screen (Suspend application) for graphical application. It's useful when the application is out of control due to bug or any reasons. Safer than Ctrl-C.
+- S-C-= : Increase font size. Unless the application has a logic to react the font size change, normally restarting application is necessary.
+- S-C-- : Decrease font size.
+- S-C-c : Copy current line to system clipboard. This is useful with text applications.
+- S-C-v : Paste data from system clipboard
 
 ## Basic file structure
 
@@ -175,18 +142,15 @@ Press the button twice, like a double click, to shut down the device.
 - `/sd/lib` : Built Python applications
 - `/sd/lib/examples` : Python application examples
 - `/sd/py` : Python application folder for user apps
-- `/sd/work` : A folder for temporarily files.
-- `/sd/music` : A folder to store music
-
 
 ## Getting started
 
-See [[getting_started]]
+See [[getting_started.md]]
 
 ## Micropython interactive console (REPL)
 
-The MicroPython interactive console (REPL) is always available on screen 1. It is great for small tasks like calculations and debugging.  
-Programs can keep running even when the screen is not selected.
+Micropython interactive console (REPL) is always available on screen 1. It' great for small tasks like calculator and debugging.
+Program can keep running even when the screen is not selected.
 
 
 ## Command Shell
@@ -197,235 +161,82 @@ Programs can keep running even when the screen is not selected.
 
 command | summary
 --------|---------
-`cmd` | Launch a new command shell. Syntax: `cmd [screen_number]`
-`ssh` | SSH command. See `[[ssh_scp_readme]]` for details.
-`scp` | SCP command. See `[[ssh_scp_readme]]` for details.
-`Python module name` or `py module_name` | Execute a Python command. Syntax: `module_name [args] [args..]`. Normally, the module name is a Python filename. The search path is in the `sys.path` list.
+cmd | launch a new command shell. Syntax is 'cmd [screen_number].
+ssh | ssh command. Syntax is "ssh host username password".
+scp | scp command. Syntax is "scp host username password copy_from copy_to". Remote path starts with ":". Example: scp 192.168.1.100 user password test.txt :/home/user/test.txt  .
+Python module name or py module_name | Execute Python command. Syntax is "module_name [args] [args..]". Normally  module name is Python filename. Searching path is in sys.path list.
 
 Here are some basic commands written by Python.
 
 command | summary
 --------|---------
-`ls [file]` | List files. `-l` will show more information such as file size and datetime. Wild card is allowed for search. `-r` for recursive search.
-`cp [options] src dst` | Copy a file. `-r` for recursive copy. Wild card is allowed for src.
-`mv src dst` | Move a file
-`mkdir dir_name` | Create a directory
-`rmdir dir_name` | Delete a directory
-`cat file [file..]` | Print file(s) content
-`cd [dir]` | Change the working directory. **Note** unlike other OSes, this is a global value shared between shells and applications. Sometimes it makes confusing result.
-`pwd` | Get the current working directory. The default working directory is `/sd/Documents`.
-`netserver [password]` | Launch a network server to provide services. It provides screencasting, clipboard and file sharing. See `[[../netserver/GETTING_STARTED]]` for details.
-`setuni` | Change the terminal font to a CJK Unicode font
-`setjpf` | Change the terminal font to Japanese. It is lighter than `setuni`
-`grep [query] [path]` | Grep query under path. `-r` enables recursive search. `-e` enables regex search. `-n` adds line numbers. `-i` ignore cases. `-l` shows filenames only.
+ls [file] | List files. 
+cp src dst | Copy file
+mv src dst | Move file
+mkdir dir_name | Create a directory
+rmdir dir_name | Delete a directory
+cat file | Print a file content
+cd [dir] | Change working directory. Note this is global value, shared between shells and applications. The applicaitons (such as pem editor) do not know the change.
+pwd | Get current working directory
+netserver | launch network server to serve services. It provide screencast and clipboard sharing. See [[netserver/GETTING_STARTED]] for detail.
+setuni | Change terminal font to CJK Unicode font,.
+setjpf | Change terminal font to Japanese. It's lighter than setuni.
+
 
 ## Basic applications
 
-### home
-
-The `home` app is launched on screen 10 after power-on. You can launch apps and change settings from the app. If you want to save changes, select `Save` in the menu.
-
-The application-launch menu can be customized using the JSON file located at `[[/config/apps.json]]`. To reload the app list, select `Reload app list` in the menu.
-
-
-### Wi-Fi
-
-The `wifi` command connects to Wi-Fi. 
-
 ### Pem editor
 
-Pem (`pem`) is an Emacs-inspired, powerful editor written in Python. See `[[pem_readme.md]]` for details.
+Pem (`pem`) is emacs-inspired powerful editor written by Python. See [[pem_readme.md]] for detail. 
 
 ### Analog clock
 
-The `analog_clock` application is useful. It includes an analog clock, calendar, and kitchen timer. You can copy the selected date, which is useful for journaling.
-
-- `c`: Copy the date to the clipboard. Format: `<yyyy-mm-dd day>`
-- Arrow keys: Move the calendar
-- Backspace or B button: Switch between the calendar and timer
-
+Analog clock (`analog_clock`) is useful application, it has analog clock, calendar and kicken timer. You can copy select date, it's useful for journaling.
 
 ### Journal
 
-`journal` analyzes `journal.md` and visualizes it as a chart. See [[journal_readme]] for details.
-
-![screenshot](../images/sc_journal.png)
-
-### Tasks
-
-`tasks` analyzes `tasks.md` and visualizes it as a task list. See [[tasks_readme]] for details.
+Journal (`journal`) analizes [[journal.md]] and visualizes to chart. Refer [[journal_readme.md]] for detail.
 
 ### Music
 
-`music` is an audio player. See `[[music_readme]]` for details.
+Music (`music`) is an audio player. Refer [[music_readme.md]] for detail.
 
 ### Wavplay
 
-`wavplay` is an audio player and the CLI version of `music`. It can also play a WAV file when you specify the path to the file.
-
-```
-wavplay folder_name
-```
-
-### Wavfileplay
-
-`wavfileplay` is a simple wav file player.
-
-```
-wavfileplay wav_file_name
-```
-
-### Recorder
-
-`recorder` is the app to record audio through line in or microphone. Audio configuration can be done via `home` app, under audio menu. Select proper input source(line in or microphone), auto gain setting(on for voice memo, off for audio recording), and input gain.
-
-There are two typical scenario to use the app, one is aircheck, and another one is voice recording.
-
-- `-s` : Sample rate, default is 24k. Select 48k(48000) for high quality recording.
-- `-l` : Specify the record length, default is one hour. It's useful when you know the length of audio.
-
-### voicerecorder
-
-`voicerecorder` is the simple wrapper application of `recoarder`. It uses 8k sample rate, mono channel. It's great for recording meeting for Speak To Text (`stt`).
+Wavplay (`wavplay`) is an audio player, CLI version of music. It also can play wav file when you specify path to wav file.
 
 ### gpt
 
-`gpt` is a powerful ChatGPT frontend. You can ask questions, attach files and images.
-
-You need an OpenAI API key to use the app. Save your API key to `/config/openapi_api_key`.
-
-- `-f`, `--file` file [file..]: Attach files or URLs as reference data. You can attach multiple files, separated by spaces.
-- `-i`, `--image` file [file..]: Attach image files or image URLs. You can attach multiple images, separated by spaces.
-- `-v`, `--voice`: Voice mode. It records your voice, transcribes it with the speech-to-text API, and speaks the response with text-to-speech.
-- `-vt`, `--voice-type`: Select a voice type (`alloy`, `coral`, `echo`, `fable`, `onyx`, `nova`, `shimmer`)
-- `-c`, `--clipboard`: Use data from the clipboard as reference data
-- `-n`: Do not save the result
-- `-m`: Select model. Default is `gpt-5.4`. Proper model name such as gpt-5.4, or `f`,`m`, `h` are allowed. `f` is fast(gpt-5.4 mini), `m` is medium(gpt-5.4), `h` is high(gpt-5.5).
-- `-j`: Answer in Japanese. You need to execute the `setuni` command to use Unicode characters in the terminal font.
-- `-q`: Specify the content explicitly, for example after the `-f` option you need to use `-q` to mark the start of the question. If you specify filename after this option, it will read the file and use this as a main prompt.
-
-#### Special syntax in prompt file
-
-When you use `-q file` to give main prompt, you can include additional files by using `[[filename]]` format. The following example will include app_development.md as a reference.
-
-```
-[[pd/app_development.md]]
-
-Make a hello world program.
-```
-
-
-
-### stt 
-
-`stt` is Speak-To-Text program, which requires OpenAI API key (See `gpt` document for details). It's useful with `voicerecorder`.
-
-```
-stt [input_wav_file]
-```
-
-It will enter recording mode when input_wav_file is not specified.
+gpt (`gpt`) is ChatGPT frontend. You can ask questions.
 
 ### dic
 
-dic is dictionary application. This is wrapper application of `gpt`. -j option to get answer in Japanese.
-
-Example:
-```
-dic squeeze
-```
+dic is dictionary application. This uses chatGPT to get the answer. -j option to get answer in Japanese.
 
 ### gdrive 
 
-`gdrive` is Google Drive integration. You can upload files to Google Drive.
+`gdrive` is Google drive integration. You can upload files to Google drive. 
 
 `gdrive src dst`
 
-### Reader
-
-`reader` is E-book reader. It remembers position per file. It also supports Japanese vertical layout.
-
-![screenshot](../images/sc_reader.png)
-![screenshot](../images/sc_reader2.png)
-
-`reader [options] filename`
-
-- `-v` : Vertical layout, good for Japanese book.
-
-arrow keys : navigate
-touch pad : scroll
-buttom buttons : page up, page down
-`B` button : quit
-
-### Flashcard
-
-Flash card is a flash card app for vocabulary.
-
-![screenshot](../images/sc_flashcards.png)
-![screenshot](../images/sc_flashcards_2.png)
-
-Sample word database file is shown below. If the line does not follow the syntax, it will be ignored, so this can be part of Markdown file.
-
-```
-## words list
-- judicious : Showing good judgement, wisely chosen
-- inscription : Words written or carved on a surface, like a stone, monument, or book.
-
-Extra comments will be ignored.
-```
-
-- Up : Reverse the content and the word.
-- Down : Open menu for read aloud and auto-generated example
-
-
-### Invader
-
-`invader` is a invader game.
-
-### Nudoc
-
-`nudoc` is a Sudoku game.
-You can feed a custom board as an optional parameter, so you can play legendary boards.
-
-
-```
-nudoc [filename]
-```
-
-The file is a simple text format. 0 means a hole.
-
-Here is an example:
-
-```
-100007090
-030020008
-009600500
-005300900
-010080002
-600004000
-300000010
-040000007
-007000300
-```
-
-
-### Zen chamber
-
-`zen_chamber` is a audio demo, meditating sound scape.
+-n : no save the result to log file
+-j : answer in Japanese (It's just adding "and answer in Japanese" at the end of the message). You need to set terminal font to support Japanese characters. setjpf or setuni to change terminal font.
 
 ## Micropython Application development
 
-You can make your own applications. See `[[app_development.md]]` for details.
+You can make your own applications. Refer [[app_development.md]] for detail.
+
 
 ## Updating built-in applications and firmware
 
-You can update applications and firmware through a Wi-Fi connection.
+You can update applications and firmware through WiFi connection.
 
-1. Connect to the internet using the `wifi` command.
+1. Connect to Internet (`wifi` command)
 
-2. Execute the `update` command to update the MicroPython applications.
+2. Execute `update` command to update MicroPython applications.
 
-3. Execute the `update_firmware` command to update the firmware. When the download is complete, all four LEDs turn on and the system reboots to enter firmware update mode. When it is finished, the firmware updater prints `Done. Reset the unit`. Reset the device. (Unplug power if using no LiPo battery. Double-click the power button if using a LiPo battery.)
+3. Execute `update_firmware' command to update firmware. When download is complete, all four LEDs are on and system will reboot the device to enter firmware update mode. When it's done, firmware updater prints `Done. Reset the unit`. Reset the device. (Unplug power without Lipo. Double click power button with Lipo.
+
 
 
 

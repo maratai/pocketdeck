@@ -49,55 +49,5 @@
             "tasks_readme.md"
         ]
     ],
-    "files": [
-        {
-            "path": "audio_module.md",
-            "md5": "45a5f20af225bb53a4d556daa32a40fe"
-        },
-        {
-            "path": "app_development.md",
-            "md5": "39d8bd4062a2d1dd96c120050467d4da"
-        },
-        {
-            "path": "getting_started.md",
-            "md5": "f91de70b58843c6e3db1b27c82ddd96e"
-        },
-        {
-            "path": "hid_usage_keyboard.h",
-            "md5": "13b623b04e5d0173e5594ede3deb6e3e"
-        },
-        {
-            "path": "journal_readme.md",
-            "md5": "92ff2a24d68b46e38c2365424d6f5548"
-        },
-        {
-            "path": "gpt_output_rules.md",
-            "md5": "39e0e05e2a50b585487a351b8290799c"
-        },
-        {
-            "path": "README.md",
-            "md5": "e0baf44863dd82124c36f1521aef0c9a"
-        },
-        {
-            "path": "ssh_scp_readme.md",
-            "md5": "ea74d5e2a7b421bf7b1541bdcf6da33e"
-        },
-        {
-            "path": "pie.md",
-            "md5": "dabfbfccfdcd3eb2ac9d2a4d5ff77c9f"
-        },
-        {
-            "path": "music_readme.md",
-            "md5": "a0b6ed9900a4834eeca0d41c7764c6a4"
-        },
-        {
-            "path": "tasks_readme.md",
-            "md5": "c6b301dcc48cd1c95e2eeb3945263569"
-        },
-        {
-            "path": "pem_readme.md",
-            "md5": "eda7f136a3e01be677bd895bf7154f59"
-        }
-    ],
     "version": "1.0"
 }

@@ -177,11 +177,6 @@ All drawing methods work when the vscreen is active (current screen). Basically 
 - `draw_ellipse(x, y, rx, ry, opt)`
 - `draw_filled_ellipse(x, y, rx, ry, opt)`
 - `draw_polygon(points_array)` - Draws a polygon from an `int16_t` array. For a triangle, the format must be `[x1, x2, x3, y1, y2, y3]`.
-- `draw_polygon_texture(points_list, map_list, image_tuple, [frame_index])` - Draws an affine textured polygon. 
-	`points_list`: Flat list or array of `[x1, x2, ..., xn, y1, y2, ..., yn]`.
-	`map_list`: Flat list or array of texture coordinates `[u1, u2, ..., un, v1, v2, ..., vn]`.
-	`image_tuple`: Standard image tuple `(name, w, h, data, num_frames)`.
-	`frame_index`: Optional frame index for multi-frame images.
 
 #### 2D3D batch face operations
 
@@ -207,12 +202,17 @@ All drawing methods work when the vscreen is active (current screen). Basically 
 
 #### Bitmap Operations
 
-Pocket deck supports XBM and the original XBMR format for image. XBMR is binary format, basically decoded XBM for performance, it also support multiple frames in one file.
+Pocket deck supports XBM and the original XBMR format for image. XBMR is binary format, basically decoded XBM for performance, it also support multiple frames in one file. It also supports texture rendering.
 
 
 - `draw_image(x, y, image, frame)` - Higher level function to draw image. image is tuple returned by xbmreader.read() or read_xbmr(), which is (name, width, height, data, num_of_frames).
-- `draw_xbm(x, y, w, h, xbm_data)` - Draw XBM. xbm_data is binary data. This is tuned version for performance.
+- `draw_xbm(x, y, w, h, xbm_data)` - Draw XBM. xbm_data is binary data. This function remains for compatibility. Use draw_image().
 - `capture_as_xbm(x, y, w, h, buffer)` - Capture screen area to XBM format
+- `draw_polygon_texture(points_array, map_array, image_tuple, [frame_index])` - Draws an affine textured polygon. 
+  `points_array`: `array('h', ...)` of `[x1, x2, ..., xn, y1, y2, ..., yn]`.
+  `map_array`: `array('h', ...)` of texture coordinates `[u1, u2, ..., un, v1, v2, ..., vn]`.
+  `image_tuple`: Standard image tuple `(name, w, h, data, num_frames)`.
+  `frame_index`: Optional frame index for multi-frame images.
 
 **Font and Display Settings:**
 
@@ -250,7 +250,7 @@ Pocket deck has two screen buffer. 0 is main buffer, and user can use buffer 1 a
 
 Callback function to be called for every frame update.
 
-- `callback(handler)` Register an screen update callback function. The handler will be called with a boolean parameter indicating if a screen change was requested. This means if False is passed to update() callback, you don't need to draw full screen, you can just call `finished()` and return if you don't need to update screen. Calling `finished()` without any drawing functions saves power. See `tasks` application to see the real usage.
+- `callback(handler)` Register an screen update callback function. The handler will be called with a boolean parameter indicating if a screen change was requested. This means if False is passed to update() callback, you don't need to draw full screen, you can just call `finished()` and return if you don't need to update screen. Calling `finished()` without any drawing functions saves power. See `tasks` application to see the real usage. You don't need to clear the screen, it is handled by the system.
 
 - `callback_exists()` Check if the callback is still registered.
 
@@ -414,8 +414,8 @@ The `anm` module provides a flexible keyframe-based animation system with variou
 - `linear(t)`: Constant speed.
 - `ease_in(t)`: Quadratic acceleration.
 - `ease_out(t)`: Quadratic deceleration.
-- `ease_in_out(t)`: Acceleration then deceleration.
-- `ease_out_in(t)`: Deceleration then acceleration (useful for jump-like physics).
+- `ease_in_out(t, [m=0.5])`: Acceleration then deceleration. Optional midpoint `m` shifts the transition timing.
+- `ease_out_in(t, [m=0.5])`: Deceleration then acceleration.
 - `spring(t)`: Bouncy overshoot effect.
 - `jump(t)`: Step function (0.0 until completion, then 1.0).
 
@@ -425,12 +425,13 @@ Represents an individual animation.
 
 - `__init__(duration_ms, props, loop=False, auto_unregister=False)`
 	- `duration_ms`: Total animation time.
-	- `props`: Dictionary of `{ 'property_name': [easing_func, val0, val1, ...] }`.
+	- `props`: Dictionary of `{ 'property_name': [easing_func, val0, val1, ...] }`. Keyframes can be lambdas for custom easing: `[lambda t: anm.ease_in_out(t, 0.8), 0, 100]`.
 	- `loop`: If True, the animation restarts automatically.
 	- `auto_unregister`: If True, the sequencer removes this object upon completion.
 
-- `seek(norm_t)`: Jumps to a specific point in the animation (0.0 to 1.0) and resets the start time.
-- `get_time()`: Returns current normalized time.
+- `seek(norm_t)`: Jumps to a specific point in the animation (0.0 to 1.0).
+- `get_time()`: Returns current normalized time (resets to 0.0 if looping).
+- `get_elapsed()`: Returns absolute progress (continues past 1.0 for loops).
 
 ### anm_sequencer
 
@@ -441,8 +442,29 @@ Manages multiple `anm_object` instances.
 - `unregister(key)`: Removes an animation object.
 - `update(t_ms)`: Updates all registered animations. Usually called in the screen update loop with `time.ticks_ms()`.
 - `get_obj(key)`: Returns the registered `anm_object` by its key.
+- `__iter__()`: Allows iterating over active animations: `for anim in sequencer:`.
+
+## font2d module reference
+
+Provides vector-based 2D text rendering using `.g3df` font files.
+
+### font_2d
+
+- `__init__(filename)`: Loads a font file.
+- `get_glyph(char)`: Returns a `glyph_2d` object. Glyphs are cached internally after first load.
+
+### text_renderer_2d
+
+- `__init__(font_obj, vscreen)`: Creates a renderer for the specified font and screen.
+- `set_font(font_obj)`: Changes the active font.
+- `get_width(text, scale)`: Returns the total width of a text string in pixels.
+- `draw_text(text, x, y, scale=1.0, rot=0.0, scale_x=None, scale_y=None, light=1.0)`: 
+	- `scale_x / scale_y`: Optional independent scaling (stretching/squashing).
+	- `light`: Multiplier for vertex colors (useful for fading or highlighting).
 
 ### Anm module example usage
+
+See animation_example for complete example code.
 
 ```python
 import anm
@@ -453,9 +475,9 @@ class AnimDemo:
     self.v = v
     self.seq = anm.anm_sequencer()
     
-    # Animate 'x' from 0 to 300, and 'y' from 50 to 150
+    # Animate 'x' with custom 80% midpoint ease
     box_anim = anm.anm_object(2000, {
-      'x': [anm.ease_in_out, 0, 300],
+      'x': [lambda t: anm.ease_in_out(t, 0.8), 0, 300],
       'y': [anm.spring, 50, 150]
     }, loop=True)
     
@@ -463,10 +485,7 @@ class AnimDemo:
 
   def update(self, e):
     v = self.v
-    # Update animations with current time
     self.seq.update(time.ticks_ms())
-    
-    # Get animated properties
     anim = self.seq.get_obj('box')
     
     v.set_draw_color(0)
@@ -474,6 +493,6 @@ class AnimDemo:
     v.set_draw_color(1)
     v.draw_box(int(anim.x), int(anim.y), 50, 50)
     v.finished()
-```
 
+```
 

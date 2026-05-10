@@ -205,6 +205,10 @@
             "esclib.py"
         ],
         [
+            "examples/animation_example.py",
+            "examples/animation_example.py"
+        ],
+        [
             "examples/compressor_example.py",
             "examples/compressor_example.py"
         ],
@@ -215,6 +219,10 @@
         [
             "examples/dither_test.py",
             "examples/dither_test.py"
+        ],
+        [
+            "examples/font2d_demo.py",
+            "examples/font2d_demo.py"
         ],
         [
             "examples/hello2.py",
@@ -277,6 +285,10 @@
             "flashcards.py"
         ],
         [
+            "font/miranda-bolditalic.g3df",
+            "font/miranda-bolditalic.g3df"
+        ],
+        [
             "font/u8g2_amstrad_cpc_extended.fnt",
             "font/u8g2_amstrad_cpc_extended.fnt"
         ],
@@ -291,6 +303,10 @@
         [
             "font/u8g2_wedge.fnt",
             "font/u8g2_wedge.fnt"
+        ],
+        [
+            "font2d.py",
+            "font2d.py"
         ],
         [
             "fontloader.py",
@@ -628,7 +644,7 @@
         },
         {
             "path": "anm.py",
-            "md5": "af65915a7f65f22afbffac7019557f5a"
+            "md5": "2b2f5002202161aade33d2c1d670ea31"
         },
         {
             "path": "pwd.py",
@@ -651,6 +667,10 @@
             "md5": "a03df3ef7093c48d46c110b063336e67"
         },
         {
+            "path": "font2d.py",
+            "md5": "f2fcda06d251a6a72edda748fa009dea"
+        },
+        {
             "path": "mv.py",
             "md5": "238690265928f863d00ff12d50a399e2"
         },
@@ -668,7 +688,7 @@
         },
         {
             "path": "gpt.py",
-            "md5": "78608cf1bf939e2f8c2cdd90e2c7ec5e"
+            "md5": "be5cb5843bebfd4783f0dd9b8acfe036"
         },
         {
             "path": "argparse.py",
@@ -756,7 +776,7 @@
         },
         {
             "path": "pem.py",
-            "md5": "45ec2e1220da04388a54d1c38da29f88"
+            "md5": "8f640d64f4e4c2cacb5a637cccb1a13e"
         },
         {
             "path": "recorder.py",
@@ -821,6 +841,10 @@
         {
             "path": "zen_chamber.py",
             "md5": "860ee36b112efffb3f8e9d7b3ecf3c4c"
+        },
+        {
+            "path": "font/miranda-bolditalic.g3df",
+            "md5": "d21611440ef3df51123e8cf5ee24cf58"
         },
         {
             "path": "font/u8g2_amstrad_cpc_extended.fnt",
@@ -979,12 +1003,20 @@
             "md5": "51a959a0e42d4ac2c62481b49af6bb23"
         },
         {
+            "path": "examples/font2d_demo.py",
+            "md5": "4757523279a9c7d939fcb754c3aa2a5c"
+        },
+        {
             "path": "examples/reverb_example.py",
             "md5": "2b2bc7698978e5fd836dfef3a13d45b8"
         },
         {
             "path": "examples/techno_example.py",
             "md5": "cfe9d4d3d14be63da995a77f4393fcf8"
+        },
+        {
+            "path": "examples/animation_example.py",
+            "md5": "8a5093305d02b4ceff2b06d1c648dae5"
         },
         {
             "path": "examples/hello_world.py",

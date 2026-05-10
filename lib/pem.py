@@ -556,6 +556,9 @@ class editor:
     #print(f"Opening.. file={name.decode()}")
 
     if not force and (name.decode() == self.file.filename or self.switch_buf_if_exists(name.decode())):
+      if self.file_row >= len(self.file.rows):
+        self.file_row = len(self.file.rows)-1
+        self.file_col = 0
       self.render_main_text(True)
       self.jump_to_position(self.file_row, self.file_col, 1, False)
       return

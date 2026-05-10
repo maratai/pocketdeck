@@ -481,7 +481,7 @@ def main(vs, args_in):
   parser.add_argument('-j', '--jp',action='store_true',help='Answer in Japanese')
   parser.add_argument('-f', '--file',nargs='+',action='store',help='Attach file(s) as reference. file1 file2...')
   parser.add_argument('-i', '--image', nargs='+', action='store',help='Attach image file(s) or image url(s). img1 img2...')
-  parser.add_argument('-m', '--model',action='store',default='gpt-5.4-mini',help='Model to use (e.g. gpt-5-mini)')
+  parser.add_argument('-m', '--model',action='store',default='gpt-5.4',help='Model to use (e.g. gpt-5-mini)')
   parser.add_argument('-v', '--voice',action='store_true',help='Use voice mode (STT and TTS)')
   parser.add_argument('-vt', '--voice-type',action='store',default='coral',help='Voice type for TTS (alloy, coral, echo, fable, onyx, nova, shimmer)')
   parser.add_argument('content', nargs='*',help='Content to ask')

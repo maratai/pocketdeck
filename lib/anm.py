@@ -4,17 +4,24 @@ import time
 def linear(t): return t
 def ease_in(t): return t * t
 def ease_out(t): return t * (2.0 - t)
-def ease_in_out(t): return 2.0 * t * t if t < 0.5 else -1.0 + (4.0 - 2.0 * t) * t
-def ease_out_in(t): 
-  if t < 0.5:
-    t2 = t * 2.0
-    return (t2 * (2.0 - t2)) * 0.5
+def ease_in_out(t, m=0.5):
+  if t < m:
+    return t * t * (0.5 / (m * m)) if m > 0 else 0.5
   else:
-    t2 = (t - 0.5) * 2.0
-    return 0.5 + (t2 * t2) * 0.5
-def spring(t): 
+    t2 = 1.0 - t
+    m2 = 1.0 - m
+    return 1.0 - t2 * t2 * (0.5 / (m2 * m2)) if m2 > 0 else 0.5
+
+def ease_out_in(t, m=0.5):
+  if t < m:
+    t2 = t / m if m > 0 else 0.0
+    return (t2 * (2.0 - t2)) * m
+  else:
+    t2 = (t - m) / (1.0 - m) if m < 1.0 else 1.0
+    return m + (t2 * t2) * (1.0 - m)
+def spring(t, b=3.0, d=5.0): 
   # Quick, bouncy overshoot function (CSS style)
-  return 1.0 - math.cos(t * math.pi * 3.0) * math.exp(-t * 5.0)
+  return 1.0 - math.cos(t * math.pi * b) * math.exp(-t * d)
 def jump(t): return 1.0 if t >= 1.0 else 0.0
 
 class anm_object:
@@ -40,12 +47,14 @@ class anm_object:
     self.internal_seek(norm_t)
 
   def internal_seek(self, norm_t):
+    self.elapsed_time = norm_t
     if self.loop:
       norm_t = norm_t % 1.0
     else:
       if norm_t < 0.0: norm_t = 0.0
       if norm_t > 1.0: norm_t = 1.0
-      
+    if self.current_time == 1.0 and norm_t == 1.0:
+      return
     self.current_time = norm_t
       
     for k, v in self.props.items():
@@ -81,6 +90,9 @@ class anm_object:
   def get_time(self):
     return self.current_time
 
+  def get_elapsed(self):
+    return self.elapsed_time
+    
 class anm_sequencer:
   def __init__(self):
     self.anms = {}
@@ -102,6 +114,7 @@ class anm_sequencer:
 
   def register(self, key, obj):
     self.anms[key] = obj
+    obj.key = key
     obj.seek(0.0)
     
   def unregister(self, key):
@@ -112,3 +125,7 @@ class anm_sequencer:
     if key in self.anms:
       return self.anms[key]
     return None
+
+  def __iter__(self):
+    for obj in self.anms.values():
+      yield obj

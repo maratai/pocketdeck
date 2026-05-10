@@ -20,6 +20,31 @@ except ImportError:
 
 # --- Geometry Utilities ---
 
+def point_line_dist(p, a, b):
+  num = abs((b[0]-a[0])*(a[1]-p[1]) - (a[0]-p[0])*(b[1]-a[1]))
+  den = math.sqrt((b[0]-a[0])**2 + (b[1]-a[1])**2)
+  if den == 0:
+    return math.sqrt((p[0]-a[0])**2 + (p[1]-a[1])**2)
+  return num / den
+
+def rdp(points, epsilon):
+  if len(points) < 3: return points
+  dmax = 0.0
+  index = 0
+  end = len(points) - 1
+  for i in range(1, end):
+    d = point_line_dist(points[i], points[0], points[end])
+    if d > dmax:
+      index = i
+      dmax = d
+  if dmax > epsilon:
+    rec1 = rdp(points[:index+1], epsilon)
+    rec2 = rdp(points[index:], epsilon)
+    return rec1[:-1] + rec2
+  else:
+    return [points[0], points[end]]
+
+
 class PathCollector(BasePen):
   def __init__(self, glyphSet):
     BasePen.__init__(self, glyphSet)
@@ -76,7 +101,7 @@ def is_point_in_polygon(p, polygon):
     j = i
   return res
 
-def process_glyph(font, char, scale=0.01, y_offset=0):
+def process_glyph(font, char, scale=0.01, y_offset=0, simplify=0.0):
   glyph_name = font.getBestCmap().get(ord(char))
   if not glyph_name: return None
   glyph_set = font.getGlyphSet()
@@ -95,6 +120,10 @@ def process_glyph(font, char, scale=0.01, y_offset=0):
         next_p = c[(i+1)%len(c)]
         if abs(p[0]-next_p[0]) > 1e-4 or abs(p[1]-next_p[1]) > 1e-4:
             clean_c.append(p)
+            
+    if simplify > 0:
+        clean_c = rdp(clean_c, simplify)
+        
     if len(clean_c) < 3: continue
     
     area = get_area(clean_c)
@@ -188,6 +217,7 @@ def main():
   parser.add_argument("--out", default="font.g3df", help="Output file")
   parser.add_argument("--chars", default="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 ,.?!:;""'()[]{}<>|^&%#@~`", help="Chars to include")
   parser.add_argument("--scale", type=float, default=0.01, help="Scale factor")
+  parser.add_argument("--simplify", type=float, default=5.0, help="RDP simplification threshold (higher = fewer vertices, default 5.0)")
   args = parser.parse_args()
 
   font = TTFont(args.ttf)
@@ -201,7 +231,7 @@ def main():
   objs = []
   print(f"Processing {len(args.chars)} characters...")
   for char in args.chars:
-    res = process_glyph(font, char, args.scale, y_offset)
+    res = process_glyph(font, char, args.scale, y_offset, args.simplify)
     if res:
       v, f, n, adv = res
       objs.append({'id': ord(char), 'v': v, 'f': f, 'n': n, 'advance': int(adv * 100)})
