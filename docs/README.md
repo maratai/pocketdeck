@@ -249,6 +249,8 @@ The `analog_clock` application is useful. It includes an analog clock, calendar,
 
 `journal` analyzes `journal.md` and visualizes it as a chart. See [[journal_readme]] for details.
 
+![screenshot](../images/sc_journal.png)
+
 ### Tasks
 
 `tasks` analyzes `tasks.md` and visualizes it as a task list. See [[tasks_readme]] for details.
@@ -341,7 +343,10 @@ dic squeeze
 
 ### Reader
 
-`reader` is E-book reader. It remebers position per file. It also supports Japanese vertical layout.
+`reader` is E-book reader. It remembers position per file. It also supports Japanese vertical layout.
+
+![screenshot](../images/sc_reader.png)
+![screenshot](../images/sc_reader2.png)
 
 `reader [options] filename`
 
@@ -355,6 +360,9 @@ buttom buttons : page up, page down
 ### Flashcard
 
 Flash card is a flash card app for vocabulary.
+
+![screenshot](../images/sc_flashcards.png)
+![screenshot](../images/sc_flashcards_2.png)
 
 Sample word database file is shown below. If the line does not follow the syntax, it will be ignored, so this can be part of Markdown file.
 
@@ -418,7 +426,6 @@ You can update applications and firmware through a Wi-Fi connection.
 2. Execute the `update` command to update the MicroPython applications.
 
 3. Execute the `update_firmware` command to update the firmware. When the download is complete, all four LEDs turn on and the system reboots to enter firmware update mode. When it is finished, the firmware updater prints `Done. Reset the unit`. Reset the device. (Unplug power if using no LiPo battery. Double-click the power button if using a LiPo battery.)
-
 
 
 
