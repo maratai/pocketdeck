@@ -31,6 +31,4 @@ This will execute `test` module that you created in the previous section. This c
 For the command reference, check README.md.
 
 
--------------- end of instruction
-
 

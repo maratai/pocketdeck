@@ -6,7 +6,7 @@ And the applications are not limited to writing, it is capable doing graphics an
 
 Powered by MicroPython, it offers a powerful API, responsive graphics, and high-quality audio so you can build and tailor features to fit your workflow wherever you are.
 
-![Product image](images/pocketdeck.jpg)
+![Product image](../images/pocketdeck.jpg)
 
 # Purchase
 
@@ -171,8 +171,8 @@ Here are some basic commands written by Python.
 
 command | summary
 --------|---------
-ls [file] | List files. 
-cp src dst | Copy file
+ls [path] | List files. Supports wildcards (e.g. `ls *.py`). `-l` for detailed view with size and date. `-r` for recursive search. `-c N` to copy filename at index N to clipboard (-1 for last).
+cp src dst | Copy file(s). Supports wildcards in src. `-r` for recursive copy. dst can be a directory when copying multiple files.
 mv src dst | Move file
 mkdir dir_name | Create a directory
 rmdir dir_name | Delete a directory
@@ -182,6 +182,7 @@ pwd | Get current working directory
 netserver | launch network server to serve services. It provide screencast and clipboard sharing. See [[netserver/GETTING_STARTED]] for detail.
 setuni | Change terminal font to CJK Unicode font,.
 setjpf | Change terminal font to Japanese. It's lighter than setuni.
+grep pattern [path] | Search text in files. `-r` recursive, `-e` regex, `-n` line numbers, `-i` ignore case, `-l` filenames only, `--include .py,.md` filter by extension, `--max N` skip files larger than N bytes.
 
 
 ## Basic applications
@@ -216,13 +217,109 @@ Music (`music`) is an audio player. Refer [[music_readme.md]] for detail.
 
 Wavplay (`wavplay`) is an audio player, CLI version of music. It also can play wav file when you specify path to wav file.
 
+### wavfileplay
+
+`wavfileplay` plays a single WAV file directly. Press any key to stop.
+
+```
+wavfileplay filename.wav
+```
+
+### recorder
+
+`recorder` records audio to a WAV file.
+
+```
+recorder [filename] [-s sample_rate] [-l length] [-c channels] [-m]
+```
+
+- Default filename: `/sd/work/rec.wav`
+- `-s`: sample rate (default 24000)
+- `-l`: recording length in seconds, or minutes with `m` suffix e.g. `30m` (default 3600)
+- `-c`: number of channels, 1 for mono, 2 for stereo (default 2)
+- `-m`: input monitoring mode — hear mic through speaker before starting, press any key to begin recording
+- Press `q` to stop recording. The filename is copied to clipboard when done.
+
+### voicerecorder
+
+`voicerecorder` records mono audio optimized for voice (low sample rate, small file size).
+
+```
+voicerecorder [filename] [-l length] [-s sample_rate]
+```
+
+- Default filename: `/sd/work/voice.wav`
+- `-s`: sample rate (default 8000)
+- `-l`: length in seconds, or minutes with `m` suffix e.g. `30m` (default 7200)
+- Press Enter or `q` to stop. The filename is copied to clipboard when done.
+
+### nudoc
+
+`nudoc` is a Sudoku game.
+
+```
+nudoc [easy|medium|hard|board_file]
+```
+
+You can also pass a board file directly.
+
+- Arrow keys: move cursor
+- 1–9: select a number
+- Enter: place selected number in current cell
+- BS: toggle note mode (pencil marks)
+- q: open quit dialog
+- Touchpad: acts as a 3×3 numpad for number selection
+- Slide bar: scroll to change selected number
+
+### invader
+
+`invader` is a Space Invaders game.
+
+- Left/Right touch buttons: move ship
+- A button: shoot laser
+- Left mouse button (square left button): quit
+
+### zen_chamber
+
+`zen_chamber` is an ambient audio-visual app. Particles fall under gravity and trigger notes from a musical scale, creating generative music.
+
+- Touchpad: tilt gravity direction
+- Slide bar (right): increase simulation energy and morph sound
+- Dial: adjust number of particles (1–8)
+- A button: transpose key clockwise on circle of fifths (+7 semitones)
+- B button: transpose key counter-clockwise (−7 semitones)
+- A+B together: cycle through scale modes
+- Bottom-right button: quit
+
 ### gpt
 
-gpt (`gpt`) is ChatGPT frontend. You can ask questions.
+gpt (`gpt`) is ChatGPT frontend. Refer [[gpt_readme.md]] for detail.
+
+### stt
+
+`stt` is a Speech-to-Text app using OpenAI Whisper API. Requires OpenAI API key at `/config/openai_api_key`.
+
+```
+stt [wav_file] [-o output_file]
+```
+
+- With no arguments: press any key to record, then transcribes and copies result to clipboard. Press `q` to quit.
+- `wav_file`: transcribe an existing WAV file directly.
+- `-o file`: save transcription to a file instead of clipboard.
+
+### tts
+
+TTS (Text-to-Speech) app. Requires OpenAI API key.
 
 ### dic
 
-dic is dictionary application. This uses chatGPT to get the answer. -j option to get answer in Japanese.
+`dic` looks up the meaning of a word using ChatGPT. Result is not saved to log.
+
+```
+dic [-j] word
+```
+
+- `-j`: answer in Japanese
 
 ### gdrive 
 
@@ -232,6 +329,41 @@ dic is dictionary application. This uses chatGPT to get the answer. -j option to
 
 -n : no save the result to log file
 -j : answer in Japanese (It's just adding "and answer in Japanese" at the end of the message). You need to set terminal font to support Japanese characters. setjpf or setuni to change terminal font.
+
+### sync
+
+`sync` is a bidirectional file sync tool that keeps folders on Pocket Deck in sync with a remote machine over SSH. It uses MD5 checksums to detect changes and syncs only what has changed. When both sides have modified the same file, the newer one wins.
+
+Authentication uses the private key at `/config/ssh/id_rsa` by default, or a password per remote.
+
+Config is stored in `/config/sync.json` and is created automatically on first run.
+
+**Managing remotes**
+
+```
+sync remote add <name> <host> <local> <remote> [password]
+sync remote remove <name>
+sync remote list
+sync remote
+```
+
+Example:
+
+```
+sync remote add notes user@192.168.1.10 /sd/Documents /home/user/Documents
+```
+
+**Syncing**
+
+```
+sync exec <name>
+```
+
+Example:
+
+```
+sync exec notes
+```
 
 ## Micropython Application development
 
@@ -246,8 +378,7 @@ You can update applications and firmware through WiFi connection.
 
 2. Execute `update` command to update MicroPython applications.
 
-3. Execute `update_firmware' command to update firmware. When download is complete, all four LEDs are on and system will reboot the device to enter firmware update mode. When it's done, firmware updater prints `Done. Reset the unit`. Reset the device. (Unplug power without Lipo. Double click power button with Lipo.
-
+3. Execute `update_firmware` command to update firmware. When download is complete, all four LEDs are on and system will reboot the device to enter firmware update mode. When it's done, firmware updater prints `Done. Reset the unit`. Reset the device. (Unplug power without Lipo. Double click power button with Lipo.
 
 
 

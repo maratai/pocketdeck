@@ -10,6 +10,9 @@ PEM editor is designed for Pocket deck system, 100% written by MicroPython, good
 - Line wrap
 - Emacs-like key bindings
 - Incremental search and replace
+- Syntax highlighting in Markdown and Python mode
+- Symbol jump (In Python mode)
+- Link jump (In Markdown mode)
 - Jump history (Like browser's back/forward buttons)
 - Yank (Kill ring, works like copy & paste buffer)
 - Completion

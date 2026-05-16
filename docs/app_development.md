@@ -506,12 +506,12 @@ The `ssh` module provides SSH remote execution and file transfer. Requires an ac
 
 All network operations run in a dedicated FreeRTOS task to avoid stack exhaustion on the MicroPython task.
 
-### ssh.Session
+### ssh.session
 
 Persistent SSH session — connect once, run many operations. Supports the `with` statement.
 
 ```python
-ssh.Session(host [, username, password, identity])
+ssh.session(host [, username, password, identity])
 ```
 
 - `host`: hostname or IP, optionally `user@host`
@@ -531,7 +531,7 @@ Raises `OSError` if the connection fails or WiFi is not available.
 ```python
 import ssh
 
-with ssh.Session("pi@192.168.1.10") as s:
+with ssh.session("pi@192.168.1.10") as s:
   rc, out = s.exec("uname -a")
   print(out.decode())
   s.put("/sd/data.txt", "/home/pi/data.txt")

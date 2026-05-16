@@ -12,6 +12,7 @@
 - Texture drawing support, you can scale images. See texture_example.py.
 - 2D scalable font support. See font2d_demo.py.
 - More system font options
+- Micropython tuning for performance.
 
 ### Applications
 
@@ -19,10 +20,14 @@
 - gpt: bug fixes, better response
 - journal: Performance improvement
 - analog_clock: Kitchen timer improvement
-- reader : Bug fix, missing fonts
+- reader : Bug fix, missing fonts, better word-wrapping
 - nudoc: Custom board support
-- A new Flashcards app(Requires OpenAPI key)
 - Standalone text-to-speech app(tts)
+
+### New Apps
+
+- A new Flashcards app(Requires OpenAPI key)
+- `sync` app for selective file sync via SSH/SFTP.
 
 ### Libraries
 

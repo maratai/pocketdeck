@@ -1,5 +1,4 @@
 # Pocket Deck text reader app
-# - Smooth scrolling
 # - UTF-8 support
 # - Remembers read position per file
 # - Markdown style **bold** support via fake bold rendering
@@ -199,7 +198,28 @@ def _wrap_segments(v, segments, height, max_width, vertical, pre, font):
   return rebuilt
 
 
-def _wrap_line(v, line, height, max_width, vertical, pre, font):
+def _hyphen_pos(word, v, avail_w):
+  """Return index i to break word as word[:i]+'-' | word[i:], or -1.
+  Ensures >= 2 chars before and >= 3 after; prefers vowel/consonant boundary."""
+  n = len(word)
+  if n < 5:
+    return -1
+  cap = n - 3
+  best = -1
+  for i in range(2, cap + 1):
+    if v.get_utf8_width(word[:i] + '-') <= avail_w:
+      best = i
+    else:
+      break
+  if best < 0:
+    return -1
+  for i in range(best, 1, -1):
+    if (word[i-1] in 'aeiouAEIOU') != (word[i] in 'aeiouAEIOU'):
+      return i
+  return best
+
+
+def _wrap_line(v, line, height, max_width, vertical, pre, font, japanese=False):
   """
   Wrap one UTF-8 line by character width with Markdown bold support.
   Returns a list of wrapped lines, each line is [(is_bold, text), ...]
@@ -212,49 +232,126 @@ def _wrap_line(v, line, height, max_width, vertical, pre, font):
   if plain == "":
     return [[(False, "")]]
 
-  out = []
-  start = 0
-  cur = plain[:pre]
-  index = 0
-  line_pre = plain[pre:]
-
-  while index < len(line_pre):
-    ch = line_pre[index]
-    test = cur + ch
-    if vertical and font == 'uni':
-      w = height * len(test)
+  if vertical:
+    # Vertical: character-by-character wrapping (Japanese)
+    is_vert_uni = font == 'uni'
+    out = []
+    start = 0
+    index = 0
+    line_pre = plain[pre:]
+    cur_prefix = plain[:pre]
+    cur_len = len(cur_prefix)
+    if is_vert_uni:
+      cur_w = height * cur_len
     else:
-      w = v.get_utf8_width(test)
+      cur_w = v.get_utf8_width(cur_prefix) if cur_prefix else 0
+    last_ch = cur_prefix[-1] if cur_prefix else ''
 
-    if vertical and font == 'uni':
-      if ch in ("、" ,"。","っ","ゃ","ゅ","ょ","ッ","ャ","ュ","ョ","」",")","ー","？","！"):
-        wrap = not (w <= max_width or cur == "")
+    while index < len(line_pre):
+      ch = line_pre[index]
+      if is_vert_uni:
+        ch_w = height
       else:
-        wrap = not (w <= max_width - height or cur == "")
-    else:
-      wrap = not (w <= max_width or cur == "")
+        ch_w = v.get_utf8_width(ch)
+      w = cur_w + ch_w
 
-    if not wrap:
-      cur = test
-    else:
-      end = pre + index
-      wrapped = _slice_segments(segments, start, end)
-      if not vertical and ch != ' ' and cur[-1] != ' ':
-        last_bold = wrapped[-1][0] if len(wrapped) > 0 else False
-        wrapped.append((last_bold, '-'))
-      out.append(wrapped)
+      if is_vert_uni:
+        if ch in ("、","。","っ","ゃ","ゅ","ょ","ッ","ャ","ュ","ョ","」",")","ー","？","！"):
+          wrap = not (w <= max_width or cur_len == 0)
+        else:
+          wrap = not (w <= max_width - height or cur_len == 0)
+      else:
+        wrap = not (w <= max_width or cur_len == 0)
 
-      start = end
-      cur = line_pre[index:index + pre + 1]
-      index += pre
-    index += 1
+      if not wrap:
+        cur_w = w
+        cur_len += 1
+        last_ch = ch
+      else:
+        end = pre + index
+        out.append(_slice_segments(segments, start, end))
+        start = end
+        new_cur = line_pre[index:index + pre + 1]
+        cur_len = len(new_cur)
+        if is_vert_uni:
+          cur_w = height * cur_len
+        else:
+          cur_w = v.get_utf8_width(new_cur) if new_cur else 0
+        last_ch = new_cur[-1] if new_cur else ''
+        index += pre
+      index += 1
 
-  out.append(_slice_segments(segments, start, len(plain)))
-  return out
+    out.append(_slice_segments(segments, start, len(plain)))
+    return out
+
+  if japanese:
+    # Horizontal Japanese/CJK: character-by-character, no hyphen
+    out = []
+    n = len(plain)
+    ls = 0
+    while ls < n:
+      cur_w = 0
+      end = ls
+      while end < n:
+        ch_w = v.get_utf8_width(plain[end])
+        if cur_w + ch_w > max_width and end > ls:
+          break
+        cur_w += ch_w
+        end += 1
+      out.append(_slice_segments(segments, ls, end))
+      ls = end
+    return out if out else [_slice_segments(segments, 0, n)]
+
+  # Horizontal: wrap at word boundaries; hyphenate only when a single word
+  # exceeds max_width, breaking at a vowel/consonant boundary.
+  out = []
+  n = len(plain)
+  ls = 0  # start of current output line in plain
+
+  while ls < n:
+    best_end = ls
+    i = ls
+
+    while i < n:
+      while i < n and plain[i] == ' ':
+        i += 1
+      if i >= n:
+        break
+      j = i
+      while j < n and plain[j] != ' ':
+        j += 1
+      if v.get_utf8_width(plain[ls:j]) <= max_width:
+        best_end = j
+        i = j
+      else:
+        break
+
+    if best_end == ls:
+      # Single word wider than max_width — hyphenate
+      j = ls
+      while j < n and plain[j] != ' ':
+        j += 1
+      word = plain[ls:j]
+      pos = _hyphen_pos(word, v, max_width)
+      if pos > 0:
+        seg = _slice_segments(segments, ls, ls + pos)
+        bold = seg[-1][0] if seg else False
+        seg.append((bold, '-'))
+        out.append(seg)
+        ls += pos
+        continue
+      best_end = j if j > ls else ls + 1  # force advance
+
+    out.append(_slice_segments(segments, ls, best_end))
+    ls = best_end
+    while ls < n and plain[ls] == ' ':
+      ls += 1
+
+  return out if out else [_slice_segments(segments, 0, n)]
 
 
 class Reader:
-  def __init__(self, v, vs, paths, isvertical, font):
+  def __init__(self, v, vs, paths, isvertical, font, japanese=False):
     self.v = v
     self.vertical = isvertical
     self.pre = 20
@@ -273,6 +370,7 @@ class Reader:
     self.margin_bottom = -10
     self.line_gap = 2
     self.fontname = font
+    self.japanese = japanese
     self.el = elib.esclib()
 
     if font == 'lub1':
@@ -342,7 +440,7 @@ class Reader:
     lines = _split_lines(raw_text)
     self.wrapped_lines = []
     for line in lines:
-      self.wrapped_lines.extend(_wrap_line(self.v, line, 16, max_width, self.vertical, self.pre, self.fontname))
+      self.wrapped_lines.extend(_wrap_line(self.v, line, 16, max_width, self.vertical, self.pre, self.fontname, self.japanese))
 
     self.total_height = len(self.wrapped_lines) * self.line_height
 
@@ -613,6 +711,7 @@ def main(vs, args_in):
   parser = argparse.ArgumentParser(
             description='Book Reader')
   parser.add_argument('-v', '--vertical', action='store_true', help='Japanese vertical style')
+  parser.add_argument('-j', '--japanese', action='store_true', help='Japanese horizontal (character-by-character wrap, no hyphenation)')
   parser.add_argument('-f', '--font', action='store', default='cen1', help='Specify font. Options are : uni (unicode), lub1, lub2, cen1, cen2')
   parser.add_argument('filename', args='*', help='filename to read')
 
@@ -627,7 +726,7 @@ def main(vs, args_in):
   else:
     paths = args.filename
 
-  reader = Reader(v, vs, paths, args.vertical, args.font)
+  reader = Reader(v, vs, paths, args.vertical, args.font, args.japanese)
   v.callback(reader.update)
   reader.load_file(paths[0])
   reader.loop()
