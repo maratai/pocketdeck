@@ -21,6 +21,10 @@
             "gpt_output_rules.md"
         ],
         [
+            "gpt_readme.md",
+            "gpt_readme.md"
+        ],
+        [
             "hid_usage_keyboard.h",
             "hid_usage_keyboard.h"
         ],
@@ -39,6 +43,10 @@
         [
             "pie.md",
             "pie.md"
+        ],
+        [
+            "release_notes.md",
+            "release_notes.md"
         ],
         [
             "ssh_scp_readme.md",

@@ -1637,8 +1637,9 @@ class editor_file:
 
     #if len(self.pos_history) > 0:
     
-    self.phistory_cur += 1
     self.pos_history.insert(self.phistory_cur,pos)
+    self.phistory_cur += 1
+
     #print(f"pos history saved to #{self.phistory_cur}:{pos[2]},{pos[3]}")
     #if len(self.pos_history) == 0:
     #  self.phistory_cur += 1

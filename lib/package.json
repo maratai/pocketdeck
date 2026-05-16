@@ -213,14 +213,6 @@
             "examples/animation_example.py"
         ],
         [
-            "examples/bench.py",
-            "examples/bench.py"
-        ],
-        [
-            "examples/bench_str.py",
-            "examples/bench_str.py"
-        ],
-        [
             "examples/compressor_example.py",
             "examples/compressor_example.py"
         ],
@@ -309,40 +301,20 @@
             "font/u8g2_font_lubI10_te.fnt"
         ],
         [
-            "font/u8g2_font_lubI10_te.fnt:Zone.Identifier",
-            "font/u8g2_font_lubI10_te.fnt:Zone.Identifier"
-        ],
-        [
             "font/u8g2_font_lubR10_te.fnt",
             "font/u8g2_font_lubR10_te.fnt"
-        ],
-        [
-            "font/u8g2_font_lubR10_te.fnt:Zone.Identifier",
-            "font/u8g2_font_lubR10_te.fnt:Zone.Identifier"
         ],
         [
             "font/u8g2_font_lubR12_te.fnt",
             "font/u8g2_font_lubR12_te.fnt"
         ],
         [
-            "font/u8g2_font_lubR12_te.fnt:Zone.Identifier",
-            "font/u8g2_font_lubR12_te.fnt:Zone.Identifier"
-        ],
-        [
             "font/u8g2_font_ncenR10_te.fnt",
             "font/u8g2_font_ncenR10_te.fnt"
         ],
         [
-            "font/u8g2_font_ncenR10_te.fnt:Zone.Identifier",
-            "font/u8g2_font_ncenR10_te.fnt:Zone.Identifier"
-        ],
-        [
             "font/u8g2_font_ncenR12_te.fnt",
             "font/u8g2_font_ncenR12_te.fnt"
-        ],
-        [
-            "font/u8g2_font_ncenR12_te.fnt:Zone.Identifier",
-            "font/u8g2_font_ncenR12_te.fnt:Zone.Identifier"
         ],
         [
             "font/u8g2_lubb08_te.fnt",
@@ -493,6 +465,14 @@
             "pwd.py"
         ],
         [
+            "py_backup/home.py",
+            "py_backup/home.py"
+        ],
+        [
+            "py_backup/pem.py",
+            "py_backup/pem.py"
+        ],
+        [
             "re_findall.py",
             "re_findall.py"
         ],
@@ -533,8 +513,16 @@
             "stt.py"
         ],
         [
+            "sync.py",
+            "sync.py"
+        ],
+        [
             "tasks.py",
             "tasks.py"
+        ],
+        [
+            "tts.py",
+            "tts.py"
         ],
         [
             "types.mpy",
@@ -597,6 +585,10 @@
         {
             "path": "sound.py",
             "md5": "42ec9027c44f6b9d44068fe1edbed309"
+        },
+        {
+            "path": "tts.py",
+            "md5": "7b93395d3a1e5394eb9a5debd0d3db91"
         },
         {
             "path": "rm.py",
@@ -776,7 +768,7 @@
         },
         {
             "path": "home.mpy",
-            "md5": "0287bcbef1a80e7ec3ab723665a9a026"
+            "md5": "feaa8197831adbd9066cf2dbf0314b02"
         },
         {
             "path": "re_findall.py",
@@ -788,7 +780,7 @@
         },
         {
             "path": "reader.py",
-            "md5": "939b068ffce6f1bce3ecefd8f6fa5d47"
+            "md5": "ca79c24bd9a2f5687a5009d6994fba5b"
         },
         {
             "path": "ls.mpy",
@@ -820,7 +812,7 @@
         },
         {
             "path": "pem.mpy",
-            "md5": "5f01a13c203e50ca23b63111f2a89397"
+            "md5": "ec0934ba0509cc4350dbd7a7516455ae"
         },
         {
             "path": "update_updater.py",
@@ -828,7 +820,7 @@
         },
         {
             "path": "pem.py",
-            "md5": "54fca5b14c021a5fc39b0129664a893e"
+            "md5": "552a86649f408d33128edc693891c2ad"
         },
         {
             "path": "recorder.py",
@@ -887,6 +879,10 @@
             "md5": "03e22f84500f11390c92d34952034db7"
         },
         {
+            "path": "sync.py",
+            "md5": "5fe280887ebc80d830f6bf1607c59a02"
+        },
+        {
             "path": "xbmreader.py",
             "md5": "46ea5b7afed5d1536b61db3a7f7d663c"
         },
@@ -899,16 +895,8 @@
             "md5": "d21611440ef3df51123e8cf5ee24cf58"
         },
         {
-            "path": "font/u8g2_font_lubR12_te.fnt:Zone.Identifier",
-            "md5": "cfca1aacd7f6564a550d570b410e11d0"
-        },
-        {
             "path": "font/u8g2_amstrad_cpc_extended.fnt",
             "md5": "9d293e4b86779f4c134f7ab00cbbdf34"
-        },
-        {
-            "path": "font/u8g2_font_lubI10_te.fnt:Zone.Identifier",
-            "md5": "cfca1aacd7f6564a550d570b410e11d0"
         },
         {
             "path": "font/u8g2_font_lubR10_te.fnt",
@@ -919,24 +907,12 @@
             "md5": "6af763ad8715824686709617951423c7"
         },
         {
-            "path": "font/u8g2_font_lubR10_te.fnt:Zone.Identifier",
-            "md5": "cfca1aacd7f6564a550d570b410e11d0"
-        },
-        {
             "path": "font/u8g2_lubb08_te.fnt",
             "md5": "403b7c60afcbc542149d2ca16557c025"
         },
         {
-            "path": "font/u8g2_font_ncenR10_te.fnt:Zone.Identifier",
-            "md5": "cfca1aacd7f6564a550d570b410e11d0"
-        },
-        {
             "path": "font/u8g2_font_ncenR12_te.fnt",
             "md5": "e4249c1603d63e39ad06cd6483c63384"
-        },
-        {
-            "path": "font/u8g2_font_ncenR12_te.fnt:Zone.Identifier",
-            "md5": "cfca1aacd7f6564a550d570b410e11d0"
         },
         {
             "path": "font/u8g2_wedge.fnt",
@@ -1095,6 +1071,14 @@
             "md5": "1d997bc6705cab21dc2f60021894e510"
         },
         {
+            "path": "py_backup/home.py",
+            "md5": "1ab7f0f471e6d49f4220b2ca16d8d763"
+        },
+        {
+            "path": "py_backup/pem.py",
+            "md5": "54fca5b14c021a5fc39b0129664a893e"
+        },
+        {
             "path": "examples/compressor_example.py",
             "md5": "51a959a0e42d4ac2c62481b49af6bb23"
         },
@@ -1109,10 +1093,6 @@
         {
             "path": "examples/techno_example.py",
             "md5": "cfe9d4d3d14be63da995a77f4393fcf8"
-        },
-        {
-            "path": "examples/bench.py",
-            "md5": "cc6a16aa5c2a041732a663796ff3a69c"
         },
         {
             "path": "examples/animation_example.py",
@@ -1149,10 +1129,6 @@
         {
             "path": "examples/input_test.py",
             "md5": "92bbd9c30b9ebd0bed3f66f172bb2043"
-        },
-        {
-            "path": "examples/bench_str.py",
-            "md5": "14de357eb64e1dd991855ac289d68014"
         },
         {
             "path": "examples/launch_app.py",

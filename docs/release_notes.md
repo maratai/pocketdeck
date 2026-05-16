@@ -28,6 +28,7 @@
 
 - A new Flashcards app(Requires OpenAPI key)
 - `sync` app for selective file sync via SSH/SFTP.
+- tts app (Text to speech). OpenAPI key needed.
 
 ### Libraries
 
