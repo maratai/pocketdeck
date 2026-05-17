@@ -812,7 +812,7 @@
         },
         {
             "path": "pem.mpy",
-            "md5": "ec0934ba0509cc4350dbd7a7516455ae"
+            "md5": "140b755e9adeede0aa9e262491056613"
         },
         {
             "path": "update_updater.py",
@@ -836,7 +836,7 @@
         },
         {
             "path": "download_drumkit_uzu.py",
-            "md5": "2b3dc2f10b6dfd4d7d79dae07e464f54"
+            "md5": "4f8246787e2b74750e8122fc5928eea4"
         },
         {
             "path": "dsp_utils.py",
