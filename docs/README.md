@@ -36,7 +36,13 @@ You need USB keyboard and cable to operate the device.
 
 ### LiPo battery (Optional, recommended)
 
-There is JST-PH connector on the main PCB. You can install LiPo battery. Around 3000mAh to 4000mAh is recommended. (Put some Amazon link here)
+There is JST-PH connector on the main PCB. You can install LiPo battery. Around 3000mAh to 5000mAh is recommended.
+
+3700mAh is good balance of weight and capacity.
+https://a.co/d/0eiQML2P
+5000mAh is for multi-days use.
+https://a.co/d/00tRmMza
+
 Battery operation is recommended.
 
 ### Magsafe stand (Optional, recommended)
@@ -184,6 +190,9 @@ setuni | Change terminal font to CJK Unicode font,.
 setjpf | Change terminal font to Japanese. It's lighter than setuni.
 grep pattern [path] | Search text in files. `-r` recursive, `-e` regex, `-n` line numbers, `-i` ignore case, `-l` filenames only, `--include .py,.md` filter by extension, `--max N` skip files larger than N bytes.
 
+## SSH/SCP setup guide
+
+See [[ssh_scp_readme]]
 
 ## Basic applications
 
@@ -196,7 +205,7 @@ Home app is an app to launch apps and change settings.
 
 ### Pem editor
 
-Pem (`pem`) is emacs-inspired powerful editor written by Python. See [[pem_readme.md]] for detail. 
+Pem (`pem`) is emacs-inspired powerful editor written by Python. See [[pem_readme]] for detail. 
 
 ### Analog clock
 
@@ -271,6 +280,23 @@ You can also pass a board file directly.
 - Touchpad: acts as a 3×3 numpad for number selection
 - Slide bar: scroll to change selected number
 
+#### Nudoc Board file
+
+Nudoc app can read custom board file.
+
+Custom board file syntax is simple text file:
+```
+800000000
+003600000
+070090200
+050007000
+000045700
+000100030
+001000068
+008500010
+090000400
+```
+
 ### invader
 
 `invader` is a Space Invaders game.
@@ -335,6 +361,7 @@ dic [-j] word
 `sync` is a bidirectional file sync tool that keeps folders on Pocket Deck in sync with a remote machine over SSH. It uses MD5 checksums to detect changes and syncs only what has changed. When both sides have modified the same file, the newer one wins.
 
 Authentication uses the private key at `/config/ssh/id_rsa` by default, or a password per remote.
+See [[ssh_scp_readme]] for details.
 
 Config is stored in `/config/sync.json` and is created automatically on first run.
 
@@ -364,6 +391,12 @@ Example:
 ```
 sync exec notes
 ```
+
+## Change boot sequence
+
+You can customermize boot sequence.
+
+Edit /main.py and uncomment / comment applications. 
 
 ## Micropython Application development
 
