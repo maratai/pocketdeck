@@ -1241,6 +1241,8 @@ class NudocGame:
       if not self.v.callback_exists():
         break
       k = self.read_key()
+      if self.state == STATE_TITLE:
+        self.title_menu.handle_tp_event()
       self.handle_key(k)
       if self.state == STATE_PLAYING:
         if self.touch_numpad:

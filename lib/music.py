@@ -230,7 +230,9 @@ class MusicGUI:
     return k
 
   def handle_key(self, k):
+    
     if k is None:
+      self.menu_ui.handle_tp_event()
       return True
 
     if k == b'q':

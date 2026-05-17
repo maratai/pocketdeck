@@ -241,6 +241,7 @@ class setting():
       self.splash_count = 0
     self.boxes = []
     self.menu_ui = menu_ui.menu_ui(vs, menu_list)
+    self.menu_ui.set_delegate(self)
     self.edit_buffer = ['', '', '']
     self.read_app_list()
 
@@ -371,7 +372,6 @@ class setting():
       return
       
     self.menu_ui.seq.update(time.ticks_ms())
-    self.menu_ui.handle_key()
     self.menu_ui.draw_cursor(self.time_diff, y_offset=10)
     
     self.menu_ui.draw_menu(y_offset=10)
@@ -615,6 +615,7 @@ class setting():
         if not self.v.active:
           pdeck.delay_tick(200)
         else:        
+          self.menu_ui.handle_tp_event()
           pdeck.delay_tick(4)
         continue
         
@@ -634,10 +635,6 @@ class setting():
         else:
           keys = b''.join(seq)
 
-      if self.menu_ui.dialog:
-        self.menu_ui.handle_key(keys)
-        continue
-
       if self.menu_ui.move_mode:
         if keys == b'\x1b[B':
           self.move_launcher_item(1)
@@ -651,37 +648,11 @@ class setting():
           self.menu_ui.set_move_mode(False)
           self.menu_ui.menu_list[0][1] = self.org_app_list
           self.menu_ui.cur_root = self.menu_ui.menu_list[0][1]
-          
-          
         continue
 
-      if keys == b'\x1b[B':
-        self.menu_ui.move_cursor(1)
-      elif keys == b'\x1b[A':
-        self.menu_ui.move_cursor(-1)
-      elif keys == b'\x1b[C':
-        self.change_value(1)
-      elif keys == b'\x1b[D':
-        self.change_value(-1)
-      elif keys == b'\r':
-        item = self.menu_ui.get_current_item()[1]
-        if isinstance(item, dict):
-          if item['type'] == 'reload_applist':
-            self.read_app_list()
-          if item['type'] == 'save_applist':
-            self.save_app_list()
-          if item['type'] == 'save_settings':
-            self.save_settings()
-            self.menu_ui.set_message('Setting saved.')
-          if item['type'] == 'program':
-            pref_scnum = item.get('screen_number')
-            self.launch_app(item['command'], pref_scnum)
-          if item['type'] == 'quit':
-            break
-        if isinstance(item,list):
-          self.menu_ui.select_item()
-      elif keys == b'\x08':
-        self.menu_ui.goup_item()
+      ret = self.menu_ui.handle_key(keys)
+      if ret == 'quit':
+        break
 
 def main(vs, args):
   el = elib.esclib()  

@@ -29,6 +29,13 @@ class menu_ui:
     self.move_shift = 0
     self.last_dialog_ms = time.ticks_ms()
     self.set_move_mode(False)
+    self.delegate = None
+    self.slider_last = 0xff
+    self.slider_anchor = 0xff
+    self.slider_step = 4
+
+  def set_delegate(self, delegate):
+    self.delegate = delegate
 
   def set_move_mode(self, mode):
     self.move_mode = mode
@@ -84,7 +91,6 @@ class menu_ui:
     return h
 
   def draw_menu(self, x_offset=0, y_offset=10):
-    #self.seq.update(time.ticks_ms())
     c_offset = 0
     c_offset_x = 0
     for i,item in enumerate(self.cur_root):
@@ -258,7 +264,6 @@ class menu_ui:
     self.v.set_dither(16)         
     self.v.set_draw_color(1)
 
-
   def _dialog_items(self, node):
     if not node:
       return []
@@ -388,64 +393,174 @@ class menu_ui:
     self._run_widget_callback(item)
     return True
 
-  def handle_key(self, keys=None):
-    if not self.dialog:
+  def _change_normal_value(self, val):
+    if not self.delegate:
       return False
-    # Passing None is intentionally a no-op. Home may call this from its
-    # update loop, while actual key bytes are delegated from keyevent_loop.
-    if keys == None:
+    item = self.get_current_item()[1]
+    if not isinstance(item, dict):
       return False
-    if isinstance(keys, str):
-      keys = keys.encode('ascii')
-    focusable = self._focusable_items()
-    if len(focusable) == 0:
-      if keys == b'\x08' or keys == b'\x1b':
-        self.close_dialog()
-        return True
-      return False
-    item = self._focused_widget()
-    typ = item.get('type') if item else None
-
-    if keys == b'\x1b[B':
-      if self.dialog_focus < len(focusable) - 1:
-        self.dialog_focus += 1
+    if item.get('type') in ('int', 'switch'):
+      self.delegate.change_value(val)
       return True
-    if keys == b'\x1b[A':
+    return False
+
+  def _enter_normal_item(self):
+    item = self.get_current_item()[1]
+    if isinstance(item, dict):
+      if not self.delegate:
+        return False
+      typ = item.get('type')
+      if typ == 'reload_applist':
+        self.delegate.read_app_list()
+        return True
+      if typ == 'save_applist':
+        self.delegate.save_app_list()
+        return True
+      if typ == 'save_settings':
+        self.delegate.save_settings()
+        self.set_message('Setting saved.')
+        return True
+      if typ == 'program':
+        pref_scnum = item.get('screen_number')
+        self.delegate.launch_app(item['command'], pref_scnum)
+        return True
+      if typ == 'quit':
+        return 'quit'
+      return True
+    if isinstance(item, list):
+      self.select_item()
+      return True
+    return False
+
+  def handle_tp_event(self):
+    try:
+      tp = self.v.get_tp_keys()
+    except:
+      return False
+    if not tp or len(tp) < 1:
+      return False
+
+    pos = tp[0]
+
+    # 0xff means the slide bar is not touched.
+    if pos == 0xff:
+      self.slider_last = 0xff
+      self.slider_anchor = 0xff
+      return False
+
+    # Slider range is 0..40. 0 is top, larger values are lower.
+    if self.slider_anchor == 0xff:
+      self.slider_anchor = pos
+      self.slider_last = pos
+      return False
+
+    diff = pos - self.slider_anchor
+    if diff >= self.slider_step:
+      self.slider_anchor = pos
+      self.slider_last = pos
+      return self._slider_move(-1)
+    if diff <= -self.slider_step:
+      self.slider_anchor = pos
+      self.slider_last = pos
+      return self._slider_move(1)
+
+    self.slider_last = pos
+    return False
+
+  def _slider_move(self, direction):
+    if self.dialog:
+      focusable = self._focusable_items()
+      if len(focusable) == 0:
+        return False
+      if direction > 0:
+        if self.dialog_focus < len(focusable) - 1:
+          self.dialog_focus += 1
+          return True
+        return False
       if self.dialog_focus > 0:
         self.dialog_focus -= 1
-      return True
-    if keys == b'\x1b[C':
-      if typ == 'select':
-        return self._change_focused_select(1)
-      if typ in ('switch', 'checkbox'):
-        item['value'] = True
-        self._run_widget_callback(item)
         return True
-      return True
-    if keys == b'\x1b[D':
-      if typ == 'select':
-        return self._change_focused_select(-1)
-      if typ in ('switch', 'checkbox'):
-        item['value'] = False
-        self._run_widget_callback(item)
-        return True
-      return True
-    if keys == b'\r':
-      if typ == 'textbox':
+      return False
+
+    if self.move_mode:
+      return False
+
+    return self.move_cursor(direction)
+
+  def handle_key(self, keys=None):
+    if keys == None:
+      return self.handle_tp_event()
+    if isinstance(keys, str):
+      keys = keys.encode('ascii')
+
+    if self.dialog:
+      focusable = self._focusable_items()
+      if len(focusable) == 0:
+        if keys == b'\x08' or keys == b'\x1b':
+          self.close_dialog()
+          return True
+        return False
+      item = self._focused_widget()
+      typ = item.get('type') if item else None
+
+      if keys == b'\x1b[B':
         if self.dialog_focus < len(focusable) - 1:
           self.dialog_focus += 1
         return True
-      return self._press_focused_widget()
-    if keys == b'\x08' or keys == b'\x1b':
-      if typ == 'textbox' and len(self._widget_value(item)) > 0:
-        item['value'] = self._widget_value(item)[:-1]
-      else:
-        self.close_dialog()
+      if keys == b'\x1b[A':
+        if self.dialog_focus > 0:
+          self.dialog_focus -= 1
+        return True
+      if keys == b'\x1b[C':
+        if typ == 'select':
+          return self._change_focused_select(1)
+        if typ in ('switch', 'checkbox'):
+          item['value'] = True
+          self._run_widget_callback(item)
+          return True
+        return True
+      if keys == b'\x1b[D':
+        if typ == 'select':
+          return self._change_focused_select(-1)
+        if typ in ('switch', 'checkbox'):
+          item['value'] = False
+          self._run_widget_callback(item)
+          return True
+        return True
+      if keys == b'\r':
+        if typ == 'textbox':
+          if self.dialog_focus < len(focusable) - 1:
+            self.dialog_focus += 1
+          return True
+        return self._press_focused_widget()
+      if keys == b'\x08' or keys == b'\x1b':
+        if typ == 'textbox' and len(self._widget_value(item)) > 0:
+          item['value'] = self._widget_value(item)[:-1]
+        else:
+          self.close_dialog()
+        return True
+      if typ == 'textbox' and keys and keys[0] >= 32 and keys[0] < 127:
+        item['value'] = self._widget_value(item) + keys.decode('ascii')
+        return True
       return True
-    if typ == 'textbox' and keys and keys[0] >= 32 and keys[0] < 127:
-      item['value'] = self._widget_value(item) + keys.decode('ascii')
+
+    if self.move_mode:
+      return False
+
+    if keys == b'\x1b[B':
+      return self.move_cursor(1)
+    if keys == b'\x1b[A':
+      return self.move_cursor(-1)
+    if keys == b'\x1b[C':
+      return self._change_normal_value(1)
+    if keys == b'\x1b[D':
+      return self._change_normal_value(-1)
+    if keys == b'\r':
+      return self._enter_normal_item()
+    if keys == b'\x08':
+      self.goup_item()
       return True
-    return True
+    return False
 
   def _widget_height(self, item):
     typ = item.get('type') if isinstance(item, dict) else None
@@ -639,20 +754,3 @@ class menu_ui:
       return
       
     return
-    # Fallback: unknown old-style dialog data is rendered as a simple message.
-    self.update_animation()
-    anim = self.dialog_anim
-    box_w = int(340 * anim)
-    box_h = int(self.dialog.get('height', 80) * anim)
-    x = 200 - box_w // 2
-    y = 120 - box_h // 2
-    self.v.set_dither(16)
-    self.v.set_draw_color(0)
-    self.v.draw_rbox(x, y, box_w, box_h, 8)
-    self.v.set_draw_color(1)
-    self.v.set_dither(1)
-    self.v.draw_rbox(x, y, box_w, box_h, 8)
-    self.v.set_dither(16)
-    if anim >= 0.95:
-      self.v.set_font('u8g2_font_profont22_mf')
-      self.v.draw_str(x + 16, y + 32, self.dialog.get('message', self.dialog.get('title', 'Dialog')))

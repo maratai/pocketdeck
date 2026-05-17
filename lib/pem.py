@@ -96,8 +96,14 @@ def _hl_md(b):
   if not b:
     return None
   if b[0] == 35:  # '#' heading — wrap whole line
-    return b''.join([_B_HL_ON, b, _B_HL_OFF])
-  if b'**' not in b and b'[' not in b:
+    idx = 0
+    while len(b) > idx and b[idx] == 35:
+      idx += 1
+    # if # is not followed by space, it's a tag.
+    if len(b) > idx and b[idx] == 0x20:
+      return b''.join([_B_HL_ON, b, _B_HL_OFF])
+
+  if b'**' not in b and b'[' not in b and b'#' not in b:
     return None
   parts = []
   append = parts.append
@@ -128,6 +134,15 @@ def _hl_md(b):
           modified = True
           i = j + 1
           continue
+    elif c == 35:  # '#'
+      j = b.find(b' ', i + 1)
+      if j == -1:
+        j=len(b)-1
+      append(_B_HL_ON); append(b[i:j + 1]); append(_B_HL_OFF)
+      modified = True
+      i = j + 1
+      continue
+
     append(b[i:i + 1])
     i += 1
   if not modified:

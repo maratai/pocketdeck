@@ -624,7 +624,7 @@
         },
         {
             "path": "nudoc.py",
-            "md5": "bcfe16ad7bb313e70943f5ab59043e61"
+            "md5": "06c10a6eebf1608b311f47982c6dcc79"
         },
         {
             "path": "benchmark.py",
@@ -684,7 +684,7 @@
         },
         {
             "path": "home.py",
-            "md5": "1ab7f0f471e6d49f4220b2ca16d8d763"
+            "md5": "62046125c3835c3fce38a2a3293c3fc3"
         },
         {
             "path": "anm.py",
@@ -788,7 +788,7 @@
         },
         {
             "path": "music.py",
-            "md5": "4ca8441008be2cc6de187961d2b2e7a7"
+            "md5": "2c43ddd2617f166e414313eb6c2a666c"
         },
         {
             "path": "pem_keymap_default.py",
@@ -820,7 +820,7 @@
         },
         {
             "path": "pem.py",
-            "md5": "552a86649f408d33128edc693891c2ad"
+            "md5": "2772ae3bf0e522ed464a62f80a476e94"
         },
         {
             "path": "recorder.py",
@@ -860,7 +860,7 @@
         },
         {
             "path": "menu_ui.py",
-            "md5": "4e46c53a972e4121108d3ec903fdda2d"
+            "md5": "c74b1ba94a4ab7fd7e820b9e6cac1c21"
         },
         {
             "path": "cp.py",
@@ -996,7 +996,7 @@
         },
         {
             "path": "data/agent_mode.md",
-            "md5": "1c3402cb2aebdd2dddaf9c23d0340e32"
+            "md5": "e1732846f7e257192e966c2d8d6768b4"
         },
         {
             "path": "data/cat4.xbmr",

@@ -1,3 +1,17 @@
+## Release note, May 17, 2026
+
+### Firmware 
+
+- Escape sequence handling bug fix
+
+### Application
+
+- Slide bar support for menu navigation
+  - home, nudoc, music app
+- PEM : syntax hightlight fix, supports hashtag highlighting(#tag) in Markdown mode.
+
+
+
 
 ## Release note, May 15, 2026
 

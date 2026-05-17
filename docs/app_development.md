@@ -225,6 +225,13 @@ Pocket deck supports XBM and the original XBMR format for image. XBMR is binary 
   - `u8g2_font_profont29_mf`
   - `u8g2_font_tenfatguys_tf`
   - `u8g2_font_tenthinnerguys_tf`
+  - `u8g2_font_t0_11_me` — includes Unicode box drawing and block element characters
+  - `u8g2_font_t0_15_me` — includes Unicode box drawing and block element characters
+  - `u8g2_font_t0_15b_me` — bold variant, includes Unicode box drawing and block element characters
+  - `u8g2_font_t0_17_me` — includes Unicode box drawing and block element characters
+  - `u8g2_font_t0_22_me` — includes Unicode box drawing and block element characters
+  - `spleen612`
+  - `spleen816`
 - `set_draw_color(color)` - 0 is black, 1 is white, 2 is xor
 - `set_font_mode(mode)` 
 - `set_font_direction(dir)` - sets font orientation (0: 0°, 1: 90°, 2: 180°, 3: 270°)
