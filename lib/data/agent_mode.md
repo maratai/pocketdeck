@@ -26,8 +26,6 @@ This code runs directly on the device and has access to the global `vs` (vscreen
 
 To capture the output of an existing module or command, use the `remote_python_call` helper to redirect `vs` to a temporary file in `/sd/work/`. Note that the first element of args have to be the command name itself.
 
-Use File creation command if you just want to change file(s) and the file is already supplied.
-
 ```python:execute
 import remote_python_call
 import ls

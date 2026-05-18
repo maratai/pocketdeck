@@ -3,6 +3,7 @@ import codec_config
 import ujson
 import wifi
 import time
+import math
 import urequests as requests
 import pdeck
 import pdeck_utils as pu
@@ -426,8 +427,8 @@ class chatgpt_util:
 el = elib.esclib()
 
 class ThinkingAnimation:
-  _SPIN = '|/-\\'
-  _BAR  = ' .-~^~-. '
+  _SPIN = '▌▄▐▀'
+  _CHARS = '▁▂▃▄▅▆▇█'
   _COLS = [36, 92, 33, 92]  # cyan → lightgreen → yellow → lightgreen
 
   def __init__(self, vs, label='Asking GPT..'):
@@ -439,34 +440,35 @@ class ThinkingAnimation:
     self.tick = 0
     self.running = True
     self._el = elib.esclib()
-    #vs.write(self._el.cursor_mode(False))
     vs.write('\r\n\r\n')
 
   def update(self, e):
     if not self.running:
       self.v.finished()
       return
-      
+
     self.tick += 1
     if self.tick % 15:
       self.v.finished()
       return
     t = self.tick // 15
     el = self._el
-    n = len(self._BAR)
+    nc = len(self._CHARS)
 
-    #dummy instruction to tell update screen
     self.v.set_draw_color(1)
 
-    bar = ''.join(self._BAR[(t + i) % n] for i in range(20))
+    bar = ''.join(
+      self._CHARS[int((math.sin((i - t * 0.5) * math.pi / 4) + 1) * (nc - 1) * 0.5 + 0.5)]
+      for i in range(20)
+    )
     spin = self._SPIN[t % len(self._SPIN)]
     col = self._COLS[(t // 8) % len(self._COLS)]
     self.vs.write(
       el.cur_up(2) +
-      spin + 
+      spin +
       ' ' + self.label + el.erase_to_end_of_current_line() + '\r\n' +
       bar +
-      el.erase_to_end_of_current_line() + '\r\n'
+      el.erase_to_end_of_current_line() + '\r\n' 
     )
     self.v.finished()
     return

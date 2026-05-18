@@ -1,225 +1,198 @@
 import asyncio
 import websockets
-import socket
 import sys
-
-# Configuration
-ESP32_HOST = '192.168.11.99'
-ESP32_PORT = 12022
-WEBSOCKET_PORT = 8000
-BUFFER_SIZE = 12000  # Expecting 12000 bytes for a 400x240 monochrome image (1 bit per pixel)
-
 import hashlib
 
+ESP32_PORT = 12022
+WEBSOCKET_PORT = 8000
+BUFFER_SIZE = 12000
+
+TCP_CONNECT_TIMEOUT = 5.0
+TCP_OP_TIMEOUT = 5.0
+
+
 async def forward_to_esp32(websocket):
-    """
-    Handles a single WebSocket connection.
-    Relays messages from the WebSocket to the ESP32 and back.
-    """
-    print(f"Client connected: {websocket.remote_address}")
-    
-    tcp_socket = None
-    try:
-        async def read_resp_header():
-            if not tcp_socket: return None
-            header = tcp_socket.recv(4)
-            if len(header) < 4:
-                return None
-            return header[0]
+  print(f"Client connected: {websocket.remote_address}")
 
-        async for message in websocket:
-            if isinstance(message, str):
-                if message.startswith("target_ip:"):
-                    new_host = message.split(':', 1)[1]
-                    try:
-                        if tcp_socket: tcp_socket.close()
-                        tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                        tcp_socket.settimeout(5.0)
-                        print(f"Connecting to ESP32 at {new_host}:{ESP32_PORT}...")
-                        tcp_socket.connect((new_host, ESP32_PORT))
-                        print("Connected to ESP32.")
-                        await websocket.send("connect_success")
-                    except Exception as e:
-                        print(f"Connection failed: {e}")
-                        tcp_socket = None
-                        await websocket.send(f"connect_failed:{e}")
-                    continue
+  tcp_reader = None
+  tcp_writer = None
 
-                if not tcp_socket:
-                    await websocket.send("ERROR: Not connected to target device.")
-                    continue
+  async def tcp_read_exactly(n):
+    return await asyncio.wait_for(tcp_reader.readexactly(n), timeout=TCP_OP_TIMEOUT)
 
-                if message.startswith("auth:"):
-                    password = message.split(':', 1)[1]
-                    md5_hex = hashlib.md5(password.encode('utf-8')).hexdigest()
-                    try:
-                        tcp_socket.sendall(f"auth {md5_hex}".encode('utf-8'))
-                        code = await read_resp_header()
-                        if code == 0:
-                            await websocket.send("auth_success")
-                            print("Authorization successful.")
-                        else:
-                            await websocket.send(f"auth_failed:code_{code}")
-                            print(f"Authorization failed: code {code}")
-                    except socket.error as e:
-                        await websocket.send(f"ERROR: {e}")
+  async def tcp_write(data):
+    tcp_writer.write(data)
+    await tcp_writer.drain()
 
-                elif message == "send_screen":
-                    try:
-                        tcp_socket.sendall(message.encode('utf-8'))
-                        code = await read_resp_header()
-                        if code != 0:
-                            await websocket.send(f"ERROR: Code {code}")
-                            continue
-                            
-                        data = b''
-                        while len(data) < BUFFER_SIZE:
-                            chunk = tcp_socket.recv(BUFFER_SIZE - len(data))
-                            if not chunk: break
-                            data += chunk
-                        
-                        if len(data) == BUFFER_SIZE:
-                            await websocket.send(data)
-                        else:
-                            await websocket.send(b'ERROR: Incomplete data')
-                    except socket.error as e:
-                        print(f"Socket error: {e}")
-                        break
-                
-                elif message.startswith("put_clipboard:"):
-                    content = message.split(':', 1)[1]
-                    content_bytes = content.encode('utf-8')
-                    size = len(content_bytes)
-                    try:
-                        tcp_socket.sendall(b"put_clipboard")
-                        tcp_socket.sendall(size.to_bytes(4, 'little'))
-                        tcp_socket.sendall(content_bytes)
-                        code = await read_resp_header()
-                        if code != 0:
-                            await websocket.send(f"ERROR: Clipboard put failed ({code})")
-                    except socket.error as e:
-                        print(f"Socket error clp: {e}")
+  async def read_resp_header():
+    header = await tcp_read_exactly(4)
+    return header[0]
 
-                elif message == "get_clipboard":
-                    try:
-                        tcp_socket.sendall(b"get_clipboard")
-                        code = await read_resp_header()
-                        if code != 0:
-                            await websocket.send(f"ERROR: Clipboard get failed ({code})")
-                            continue
-                            
-                        size_bytes = tcp_socket.recv(4)
-                        if len(size_bytes) == 4:
-                            size = int.from_bytes(size_bytes, 'little')
-                            clip_data = b''
-                            while len(clip_data) < size:
-                                chunk = tcp_socket.recv(size - len(clip_data))
-                                if not chunk: break
-                                clip_data += chunk
-                            
-                            if len(clip_data) == size:
-                                text = clip_data.decode('utf-8', errors='ignore')
-                                await websocket.send(f"clipboard_data:{text}")
-                    except socket.error as e:
-                        print(f"Socket error get_clp: {e}")
+  async def close_tcp():
+    nonlocal tcp_reader, tcp_writer
+    if tcp_writer:
+      try:
+        tcp_writer.close()
+        await tcp_writer.wait_closed()
+      except Exception:
+        pass
+    tcp_reader = None
+    tcp_writer = None
 
-                elif message == "get_file_list":
-                    try:
-                        tcp_socket.sendall(b"get_file_list")
-                        code = await read_resp_header()
-                        if code != 0:
-                            await websocket.send(f"file_list_error:{code}")
-                            continue
-                        size_bytes = tcp_socket.recv(4)
-                        size = int.from_bytes(size_bytes, 'little')
-                        data = b''
-                        while len(data) < size:
-                            chunk = tcp_socket.recv(size - len(data))
-                            if not chunk: break
-                            data += chunk
-                        await websocket.send(f"file_list:{data.decode('utf-8')}")
-                    except socket.error as e:
-                        await websocket.send(f"ERROR: {e}")
+  try:
+    async for message in websocket:
+      if isinstance(message, str):
+        if message.startswith("target_ip:"):
+          new_host = message.split(':', 1)[1]
+          try:
+            await close_tcp()
+            print(f"Connecting to ESP32 at {new_host}:{ESP32_PORT}...")
+            tcp_reader, tcp_writer = await asyncio.wait_for(
+              asyncio.open_connection(new_host, ESP32_PORT),
+              timeout=TCP_CONNECT_TIMEOUT
+            )
+            print("Connected to ESP32.")
+            await websocket.send("connect_success")
+          except Exception as e:
+            print(f"Connection failed: {e}")
+            await close_tcp()
+            await websocket.send(f"connect_failed:{e}")
+          continue
 
-                elif message.startswith("get_file:"):
-                    filename = message.split(':', 1)[1]
-                    try:
-                        tcp_socket.sendall(f"get_file {filename}".encode('utf-8'))
-                        code = await read_resp_header()
-                        if code != 0:
-                            await websocket.send(f"file_get_error:{code}")
-                            print(f"File get error: {code}")
-                            continue
-                        size_bytes = tcp_socket.recv(4)
-                        size = int.from_bytes(size_bytes, 'little')
-                        # Send size prefix to WS first so client knows how much to expect
-                        await websocket.send(f"file_start:{filename}:{size}")
-                        print(f"Receiving file {filename} ({size} bytes)")
-                        total_sent = 0
-                        while total_sent < size:
-                            chunk = tcp_socket.recv(min(4096, size - total_sent))
-                            if not chunk: break
-                            await websocket.send(chunk)
-                            total_sent += len(chunk)
-                    except socket.error as e:
-                        await websocket.send(f"ERROR: {e}")
-                else:
-                    print(f"Unknown string message received: {message}")
+        if not tcp_writer:
+          await websocket.send("ERROR: Not connected to target device.")
+          continue
 
-            elif isinstance(message, bytes):
-                if not tcp_socket:
-                    await websocket.send("ERROR: Not connected to target device.")
-                    continue
-
-                if message.startswith(b"put_file:"):
-                    # Binary message expected for upload: "put_file:[filename]\0[binary_data]"
-                    parts = message.split(b":", 1)
-                    content = parts[1]
-                    f_null_idx = content.find(b"\0")
-                    if f_null_idx != -1:
-                        filename = content[:f_null_idx].decode('utf-8')
-                        file_data = content[f_null_idx+1:]
-                        size = len(file_data)
-                        try:
-                            tcp_socket.sendall(b"put_file ")
-                            tcp_socket.sendall(filename.encode('utf-8') + b"\0")
-                            tcp_socket.sendall(size.to_bytes(4, 'little'))
-                            tcp_socket.sendall(file_data)
-                            code = await read_resp_header()
-                            if code == 0:
-                                await websocket.send("file_put_success")
-                            else:
-                                await websocket.send(f"file_put_error:{code}")
-                        except socket.error as e:
-                            await websocket.send(f"ERROR: {e}")
-                else:
-                    print(f"Unknown binary message received: {len(message)} bytes")
-
-    except Exception as e:
-        print(f"Connection error: {e}")
         try:
-             await websocket.send(f"ERROR: {e}")
-        except:
-             pass
-    finally:
-        if tcp_socket:
-            tcp_socket.close()
-        print(f"Client disconnected: {websocket.remote_address}")
+          if message.startswith("auth:"):
+            password = message.split(':', 1)[1]
+            md5_hex = hashlib.md5(password.encode('utf-8')).hexdigest()
+            await tcp_write(f"auth {md5_hex}".encode('utf-8'))
+            code = await read_resp_header()
+            if code == 0:
+              await websocket.send("auth_success")
+              print("Authorization successful.")
+            else:
+              await websocket.send(f"auth_failed:code_{code}")
+              print(f"Authorization failed: code {code}")
+
+          elif message == "send_screen":
+            await tcp_write(b"send_screen")
+            code = await read_resp_header()
+            if code != 0:
+              await websocket.send(f"ERROR: Code {code}")
+              continue
+            data = await tcp_read_exactly(BUFFER_SIZE)
+            await websocket.send(data)
+
+          elif message.startswith("put_clipboard:"):
+            content = message.split(':', 1)[1].encode('utf-8')
+            await tcp_write(b"put_clipboard")
+            await tcp_write(len(content).to_bytes(4, 'little'))
+            await tcp_write(content)
+            code = await read_resp_header()
+            if code != 0:
+              await websocket.send(f"ERROR: Clipboard put failed ({code})")
+
+          elif message == "get_clipboard":
+            await tcp_write(b"get_clipboard")
+            code = await read_resp_header()
+            if code != 0:
+              await websocket.send(f"ERROR: Clipboard get failed ({code})")
+              continue
+            size_bytes = await tcp_read_exactly(4)
+            size = int.from_bytes(size_bytes, 'little')
+            clip_data = await tcp_read_exactly(size) if size > 0 else b''
+            text = clip_data.decode('utf-8', errors='ignore')
+            await websocket.send(f"clipboard_data:{text}")
+
+          elif message == "get_file_list":
+            await tcp_write(b"get_file_list")
+            code = await read_resp_header()
+            if code != 0:
+              await websocket.send(f"file_list_error:{code}")
+              continue
+            size = int.from_bytes(await tcp_read_exactly(4), 'little')
+            data = await tcp_read_exactly(size)
+            await websocket.send(f"file_list:{data.decode('utf-8')}")
+
+          elif message.startswith("get_file:"):
+            filename = message.split(':', 1)[1]
+            await tcp_write(f"get_file {filename}".encode('utf-8'))
+            code = await read_resp_header()
+            if code != 0:
+              await websocket.send(f"file_get_error:{code}")
+              continue
+            size = int.from_bytes(await tcp_read_exactly(4), 'little')
+            await websocket.send(f"file_start:{filename}:{size}")
+            print(f"Receiving file {filename} ({size} bytes)")
+            remaining = size
+            while remaining > 0:
+              chunk = await asyncio.wait_for(
+                tcp_reader.read(min(4096, remaining)),
+                timeout=TCP_OP_TIMEOUT
+              )
+              if not chunk:
+                break
+              await websocket.send(chunk)
+              remaining -= len(chunk)
+
+          else:
+            print(f"Unknown string message: {message}")
+
+        except (asyncio.TimeoutError, asyncio.IncompleteReadError, ConnectionError) as e:
+          print(f"TCP error: {e}")
+          await close_tcp()
+          await websocket.send(f"ERROR: {e}")
+
+      elif isinstance(message, bytes):
+        if not tcp_writer:
+          await websocket.send("ERROR: Not connected to target device.")
+          continue
+
+        if message.startswith(b"put_file:"):
+          content = message.split(b":", 1)[1]
+          f_null_idx = content.find(b"\0")
+          if f_null_idx != -1:
+            filename = content[:f_null_idx].decode('utf-8')
+            file_data = content[f_null_idx+1:]
+            try:
+              await tcp_write(b"put_file ")
+              await tcp_write(filename.encode('utf-8') + b"\0")
+              await tcp_write(len(file_data).to_bytes(4, 'little'))
+              await tcp_write(file_data)
+              code = await read_resp_header()
+              if code == 0:
+                await websocket.send("file_put_success")
+              else:
+                await websocket.send(f"file_put_error:{code}")
+            except (asyncio.TimeoutError, asyncio.IncompleteReadError, ConnectionError) as e:
+              print(f"TCP error during put_file: {e}")
+              await close_tcp()
+              await websocket.send(f"ERROR: {e}")
+        else:
+          print(f"Unknown binary message: {len(message)} bytes")
+
+  except Exception as e:
+    print(f"Connection error: {e}")
+    try:
+      await websocket.send(f"ERROR: {e}")
+    except Exception:
+      pass
+  finally:
+    await close_tcp()
+    print(f"Client disconnected: {websocket.remote_address}")
+
 
 async def main():
-    # Allow overriding host via command line
-    global ESP32_HOST
-    if len(sys.argv) == 2:
-        ESP32_HOST = sys.argv[1]
-        
-    print(f"Starting WebSocket Proxy on port {WEBSOCKET_PORT}")
-    print(f"Target ESP32: {ESP32_HOST}:{ESP32_PORT}")
-    
-    async with websockets.serve(forward_to_esp32, "localhost", WEBSOCKET_PORT):
-        await asyncio.Future()  # run forever
+  host = sys.argv[1] if len(sys.argv) == 2 else None
+  print(f"Starting WebSocket Proxy on port {WEBSOCKET_PORT}")
+  async with websockets.serve(forward_to_esp32, "localhost", WEBSOCKET_PORT):
+    await asyncio.Future()
+
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        print("\nStopping proxy.")
+  try:
+    asyncio.run(main())
+  except KeyboardInterrupt:
+    print("\nStopping proxy.")

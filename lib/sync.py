@@ -17,13 +17,15 @@ _DEFAULT_CONFIG = {
 # Remote script converts st_mtime to MicroPython Y2K epoch (2000-01-01)
 # so both sides use the same epoch and the device can compare directly.
 _REMOTE_SCRIPT = (
-  "import os,hashlib,json,sys\n"
+  "import os,hashlib,json,sys,fnmatch\n"
   "root=sys.argv[1]\n"
+  "pattern=sys.argv[2] if len(sys.argv)>2 else None\n"
   "E=946684800\n"
   "r={}\n"
   "if os.path.isdir(root):\n"
   "  for dp,ds,fs in os.walk(root):\n"
   "    for fn in fs:\n"
+  "      if pattern and not fnmatch.fnmatch(fn,pattern):continue\n"
   "      p=os.path.join(dp,fn)\n"
   "      rel=os.path.relpath(p,root).replace('\\\\','/')\n"
   "      st=os.stat(p)\n"
@@ -87,9 +89,13 @@ def _walk(root, rel=""):
   return result
 
 
-def _build_local_manifest(root):
+def _build_local_manifest(root, pattern=None):
   manifest = {}
   for rel_path, st in _walk(root):
+    if pattern:
+      basename = rel_path.rsplit('/', 1)[-1] if '/' in rel_path else rel_path
+      if not _glob_match(basename, pattern):
+        continue
     full = root + "/" + rel_path
     try:
       manifest[rel_path] = {
@@ -102,9 +108,10 @@ def _build_local_manifest(root):
   return manifest
 
 
-def _build_remote_manifest(session, remote_root):
+def _build_remote_manifest(session, remote_root, pattern=None):
   safe_root = remote_root.replace("'", "'\\''")
-  cmd = f"python3 - '{safe_root}' << 'PYEOF'\n{_REMOTE_SCRIPT}PYEOF"
+  safe_pat = (" '" + pattern.replace("'", "'\\''") + "'") if pattern else ""
+  cmd = f"python3 - '{safe_root}'{safe_pat} << 'PYEOF'\n{_REMOTE_SCRIPT}PYEOF"
   rc, out = session.exec(cmd)
   if rc != 0 or not out.strip():
     return {}
@@ -135,16 +142,35 @@ def _parent(path):
   return path[:idx] if idx > 0 else "/"
 
 
-def _sync_pair(session, local_root, remote_root, vs):
+def _glob_match(name, pattern):
+  parts = pattern.split('*')
+  if len(parts) == 1:
+    return name == pattern
+  if not name.startswith(parts[0]):
+    return False
+  pos = len(parts[0])
+  for part in parts[1:-1]:
+    idx = name.find(part, pos)
+    if idx == -1:
+      return False
+    pos = idx + len(part)
+  last = parts[-1]
+  return name.endswith(last) and len(name) >= pos + len(last)
+
+
+def _sync_pair(session, local_root, remote_root, vs, pattern=None):
   _p(vs, f"  local:  {_b(local_root)}")
   _p(vs, f"  remote: {_b(remote_root)}")
 
+  if pattern:
+    _p(vs, f"  filter: {_b(pattern)}")
+
   _p(vs, "  Scanning local...")
-  local = _build_local_manifest(local_root)
+  local = _build_local_manifest(local_root, pattern)
   _p(vs, f"  {_b(len(local))} local files")
 
   _p(vs, "  Scanning remote...")
-  remote = _build_remote_manifest(session, remote_root)
+  remote = _build_remote_manifest(session, remote_root, pattern)
   _p(vs, f"  {_b(len(remote))} remote files")
 
   _makedirs_remote(session, remote_root)
@@ -244,7 +270,7 @@ def _cmd_remote(vs, cfg, args):
     _p(vs, "Usage: sync remote [add|remove|list]")
 
 
-def _cmd_exec(vs, cfg, name):
+def _cmd_exec(vs, cfg, name, pattern=None):
   remotes = cfg.get("remotes", {})
   if name not in remotes:
     _p(vs, f"Remote '{name}' not found.")
@@ -271,7 +297,7 @@ def _cmd_exec(vs, cfg, name):
   try:
     with ssh.session(host, None, password, identity) as session:
       _p(vs, "Connected.")
-      push, pull, skip, err = _sync_pair(session, local_root, remote_root, vs)
+      push, pull, skip, err = _sync_pair(session, local_root, remote_root, vs, pattern)
       _p(vs, "")
       _p(vs, f"Done.  {_b('push')}:{_b(push)}  {_b('pull')}:{_b(pull)}  skip:{skip}  err:{err}")
   except OSError as e:
@@ -284,7 +310,7 @@ def main(vs, args):
   if len(args) < 2:
     _p(vs, "Usage:")
     _p(vs, "  sync remote [add|remove|list]")
-    _p(vs, "  sync exec <name>")
+    _p(vs, "  sync exec <name> [-f pattern]")
     return
 
   cmd = args[1]
@@ -292,9 +318,18 @@ def main(vs, args):
     _cmd_remote(vs, cfg, args[2:])
   elif cmd == "exec":
     if len(args) < 3:
-      _p(vs, "Usage: sync exec <name>")
+      _p(vs, "Usage: sync exec <name> [-f pattern]")
       return
-    _cmd_exec(vs, cfg, args[2])
+    pattern = None
+    rest = args[3:]
+    i = 0
+    while i < len(rest):
+      if rest[i] in ('--filter', '-f') and i + 1 < len(rest):
+        pattern = rest[i + 1]
+        i += 2
+      else:
+        i += 1
+    _cmd_exec(vs, cfg, args[2], pattern)
   else:
     _p(vs, f"Unknown: {cmd}")
     _p(vs, "Usage: sync remote|exec")
