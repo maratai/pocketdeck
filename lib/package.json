@@ -5,6 +5,10 @@
             "analog_clock.py"
         ],
         [
+            "analog_clock_set_timer.py",
+            "analog_clock_set_timer.py"
+        ],
+        [
             "anm.py",
             "anm.py"
         ],
@@ -47,6 +51,10 @@
         [
             "cpmv.py",
             "cpmv.py"
+        ],
+        [
+            "curl.py",
+            "curl.py"
         ],
         [
             "data/active.xbmr",
@@ -345,6 +353,10 @@
             "gpt.py"
         ],
         [
+            "gpt_rt.py",
+            "gpt_rt.py"
+        ],
+        [
             "grep.py",
             "grep.py"
         ],
@@ -485,6 +497,10 @@
             "recorder.py"
         ],
         [
+            "remote_python_call.py",
+            "remote_python_call.py"
+        ],
+        [
             "rm.py",
             "rm.py"
         ],
@@ -600,7 +616,7 @@
         },
         {
             "path": "analog_clock.py",
-            "md5": "b9c99156f01b32f393fb99067a8eea71"
+            "md5": "35b2a82030c76b37929d51b225a09808"
         },
         {
             "path": "ble_manager.py",
@@ -641,6 +657,10 @@
         {
             "path": "ble_kb.py",
             "md5": "74bf34ab5b26c14e94bcad862c592097"
+        },
+        {
+            "path": "curl.py",
+            "md5": "f9a2ead82c8254195b95ad33f0a6cb6e"
         },
         {
             "path": "ntptime.mpy",
@@ -720,7 +740,11 @@
         },
         {
             "path": "esclib.py",
-            "md5": "54b71b983fd41f9aec438f67bdc19452"
+            "md5": "4633bb65f4425017712dc0a78de99dbb"
+        },
+        {
+            "path": "gpt_rt.py",
+            "md5": "ae6f5a415b1b4f32795d9e1322530e6e"
         },
         {
             "path": "pngreader.py",
@@ -780,7 +804,7 @@
         },
         {
             "path": "reader.py",
-            "md5": "ca79c24bd9a2f5687a5009d6994fba5b"
+            "md5": "01f92acf701e88b09eb37735b44279d9"
         },
         {
             "path": "ls.mpy",
@@ -797,6 +821,10 @@
         {
             "path": "xbm2xbmr.py",
             "md5": "e8d28f7e255ac66d3f19163226b1595f"
+        },
+        {
+            "path": "analog_clock_set_timer.py",
+            "md5": "375042ce44f86b5ff13fc7464e166e4f"
         },
         {
             "path": "pem_keymap.py",
@@ -873,6 +901,10 @@
         {
             "path": "dic.py",
             "md5": "d25730d654db7300ec710a432ac1f1e6"
+        },
+        {
+            "path": "remote_python_call.py",
+            "md5": "11236b47d7ae3c7992ca4f56c0a4a3e8"
         },
         {
             "path": "grep.py",

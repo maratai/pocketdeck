@@ -94,7 +94,16 @@ def main(vs, args):
   print('This message goes to the current screen', file=vs)
 ```
 
+## Remote command exection
 
+Remote command is an interface to execute function from the other Python app. 
+
+For example, `analog_clock_set_timer` command sets kitchen timer when the application exists in the system.
+
+To support remote command, follow the steps:
+
+1. In the app, vscreen_stream.register() to register the application object.
+2. In the caller app, scan pdeck_utils.app_list and get the object, and call the function. Print message for result. The message could be used by AI.
 
 ## Pdeck module reference
 
@@ -147,7 +156,7 @@ Normally you can get vscreen object via vscreen_stream, passed to main().
 
 ```python
 def main(vs, args):
-	v = vs.v #v is vscreen object, don't get confused, vs is vscrreen_strem object.
+    v = vs.v #v is vscreen object, don't get confused, vs is vscrreen_strem object.
 ```
 
 Or 
@@ -183,14 +192,14 @@ All drawing methods work when the vscreen is active (current screen). Basically 
 #### 2D3D batch face operations
 
 - `draw_3d_faces(points, indices, dither)` - Specialized high-speed batch renderer for 3D/2D faces. Draws all triangles in one call with internal state caching for dither levels. This function is used with dsplib module's indexed projection functions. See dsplib module reference and example applications, `sphere_test`, `cube_test`.
-	`points`: array('h',...) stores vertecies of triangles. Size is 6*number_of_faces
-	`indices`: array('H',...) stores face indices (the order of drawing triangles). Size is number_of_faces.
-	`dither`: array('b',...) stores dither(color) of each face. Size is number_of_faces.
+    `points`: array('h',...) stores vertecies of triangles. Size is 6*number_of_faces
+    `indices`: array('H',...) stores face indices (the order of drawing triangles). Size is number_of_faces.
+    `dither`: array('b',...) stores dither(color) of each face. Size is number_of_faces.
 
 - `draw_2d_faces(points, indices, dither)` - Alias for `draw_3d_faces` for API clarity when working with 2D projections. 
-	`points`: array('h',...) stores vertecies of triangles. Size is 6*number_of_faces
-	`indices`: array('H',...) stores face indices (the order of drawing triangles). Size is number_of_faces.
-	`dither`: array('b',...) stores dither(color) of each face. Size is number_of_faces.
+    `points`: array('h',...) stores vertecies of triangles. Size is 6*number_of_faces
+    `indices`: array('H',...) stores face indices (the order of drawing triangles). Size is number_of_faces.
+    `dither`: array('b',...) stores dither(color) of each face. Size is number_of_faces.
 
 
 #### Text Operations
@@ -338,18 +347,19 @@ vscreen_stream is Python wrapper of vscreen object.  vscreen_stream provides str
 ```Python
 # vs is vscreen_stream object
 def main(vs, args):
-	print("Helloworld", file=vs)
+    print("Helloworld", file=vs)
 ```
 
 
 - `v` vscreen object associated in the object. Application can get vscreen object by accessing the member.
 
 
-
 ```Python
 def main(vs,args):
   v = vs.v # Getting vscreen object for the app.
 ```
+
+- register_module() : it's used for remote command. See Remote command section for details.
 
 ## dsplib module
 
@@ -433,10 +443,10 @@ The `anm` module provides a flexible keyframe-based animation system with variou
 Represents an individual animation.
 
 - `__init__(duration_ms, props, loop=False, auto_unregister=False)`
-	- `duration_ms`: Total animation time.
-	- `props`: Dictionary of `{ 'property_name': [easing_func, val0, val1, ...] }`. Keyframes can be lambdas for custom easing: `[lambda t: anm.ease_in_out(t, 0.8), 0, 100]`.
-	- `loop`: If True, the animation restarts automatically.
-	- `auto_unregister`: If True, the sequencer removes this object upon completion.
+    - `duration_ms`: Total animation time.
+    - `props`: Dictionary of `{ 'property_name': [easing_func, val0, val1, ...] }`. Keyframes can be lambdas for custom easing: `[lambda t: anm.ease_in_out(t, 0.8), 0, 100]`.
+    - `loop`: If True, the animation restarts automatically.
+    - `auto_unregister`: If True, the sequencer removes this object upon completion.
 
 - `seek(norm_t)`: Jumps to a specific point in the animation (0.0 to 1.0).
 - `get_time()`: Returns current normalized time (resets to 0.0 if looping).
@@ -468,8 +478,8 @@ Provides vector-based 2D text rendering using `.g3df` font files.
 - `set_font(font_obj)`: Changes the active font.
 - `get_width(text, scale)`: Returns the total width of a text string in pixels.
 - `draw_text(text, x, y, scale=1.0, rot=0.0, scale_x=None, scale_y=None, light=1.0)`: 
-	- `scale_x / scale_y`: Optional independent scaling (stretching/squashing).
-	- `light`: Multiplier for vertex colors (useful for fading or highlighting).
+    - `scale_x / scale_y`: Optional independent scaling (stretching/squashing).
+    - `light`: Multiplier for vertex colors (useful for fading or highlighting).
 
 ### Anm module example usage
 
@@ -572,5 +582,4 @@ Returns `0` on success. `src` and `dst` follow standard SCP notation (`user@host
 ```python
 ssh.scp("/sd/file.txt", "pi@192.168.1.10:/home/pi/file.txt")
 ```
-
 

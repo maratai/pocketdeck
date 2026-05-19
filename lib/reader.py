@@ -72,6 +72,16 @@ def _split_lines(text):
   return text.split("\n")
 
 
+def _is_cjk(text):
+  for ch in text:
+    o = ord(ch)
+    if (0x3000 <= o <= 0x9FFF or
+        0xF900 <= o <= 0xFAFF or
+        0xFF00 <= o <= 0xFFEF):
+      return True
+  return False
+
+
 def _tokenize_markdown_bold(line):
   """
   Split a line into [(is_bold, text), ...] using Markdown style **bold**.
@@ -284,16 +294,16 @@ def _wrap_line(v, line, height, max_width, vertical, pre, font, japanese=False):
     out.append(_slice_segments(segments, start, len(plain)))
     return out
 
-  if japanese:
-    # Horizontal Japanese/CJK: character-by-character, no hyphen
+  if japanese or ' ' not in plain:
+    # Horizontal CJK/space-less: character-by-character, no hyphen
     out = []
     n = len(plain)
     ls = 0
     while ls < n:
       cur_w = 0
       end = ls
-      while end < n:
-        ch_w = v.get_utf8_width(plain[end])
+      for ch in plain[ls:]:
+        ch_w = v.get_utf8_width(ch)
         if cur_w + ch_w > max_width and end > ls:
           break
         cur_w += ch_w
@@ -369,10 +379,23 @@ class Reader:
     self.margin_top = 23
     self.margin_bottom = -10
     self.line_gap = 2
-    self.fontname = font
     self.japanese = japanese
+    self.help_h = 18
     self.el = elib.esclib()
 
+    self._setup_font(font)
+
+    self.status = ""
+    self.status_life = 0
+
+    self.wrapped_lines = []
+    self.total_height = 0
+    self.current_path = None
+    self.current_key = None
+
+  def _setup_font(self, font):
+    self.fontname = font
+    self.margin_x = 0
     if font == 'lub1':
       self.pre = 40
       fontname = 'u8g2_font_lubR10_te'
@@ -412,17 +435,7 @@ class Reader:
       self.v.set_font(self.font)
       self.margin_x = 5
       self.line_height = 24
-
-    self.help_h = 18
     self.text_h = (self.screen_h - self.margin_top - self.margin_bottom - self.help_h) // self.line_height * self.line_height
-
-    self.status = ""
-    self.status_life = 0
-
-    self.wrapped_lines = []
-    self.total_height = 0
-    self.current_path = None
-    self.current_key = None
 
   def _state_key(self, path):
     return path
@@ -433,6 +446,12 @@ class Reader:
   def load_file(self, path):
     self.current_key = self._state_key(path)
     raw_text = _read_text_file(path)
+
+    if _is_cjk(raw_text):
+      if self.fontname != 'uni':
+        self._setup_font('uni')
+      if not self.vertical:
+        self.japanese = True
 
     self.v.set_font(self.font)
 
@@ -517,12 +536,14 @@ class Reader:
     for is_bold, text in segments:
       if text == "":
         continue
-      if is_bold:
-        self.v.draw_utf8(cur_x, y, text)
-        self.v.draw_utf8(cur_x + 1, y, text)
-      else:
-        self.v.draw_utf8(cur_x, y, text)
-      cur_x += self.v.get_utf8_width(text)
+      for ch in text:
+        ch_w = self.v.get_utf8_width(ch)
+        if is_bold:
+          self.v.draw_utf8(cur_x, y, ch)
+          self.v.draw_utf8(cur_x + 1, y, ch)
+        else:
+          self.v.draw_utf8(cur_x, y, ch)
+        cur_x += ch_w
     self.v.set_font_pos_baseline()
 
   def _draw_segments_vertical(self, x, y, segments):

@@ -139,6 +139,22 @@ class analog_clock:
     self.sampler.volume(1, 0.8)
     self.op_second = None
       
+  def pub_set_timer(self, minute):
+    self.wavplay_click()
+    org_minute = self.kt.minute
+    self.kt.minute = minute
+    self.kt.second = 0
+    self.kt.anim = anm.anm_object(min(20*org_minute,600),
+      { 'minute' : [ anm.ease_out, self.kt.anim.minute, self.kt.minute ]})
+    self.kt.anim.goal = self.kt.minute
+    self.seq.register('timer_hand', self.kt.anim)
+    self.kt.second_past = 0
+    self.kt.starttime = time.ticks_ms()
+    self.kt.org_minute = self.kt.minute
+    self.kt.org_second = self.kt.second
+    self.kt.stat = KT_RUNNING
+    self.page = 'timer'
+
   def wavplay_alarm(self):
     self.sampler.play(0)
     
@@ -776,7 +792,7 @@ def main(vs, args):
   sampler = audio.sampler(2)
   with sampler:
     clock = analog_clock(v, vs, sampler)
-  
+    vs.register_module(clock)
     v.callback(clock.update)
     clock.keyevent_loop()
   

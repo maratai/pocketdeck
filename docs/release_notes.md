@@ -1,3 +1,15 @@
+## Release note, May 18, 2026
+
+### Firmware
+
+- Bug fix : Incorrect GC collection.
+
+### Application
+
+- gpt_rt is added for realtime voice agent.
+- curl tools added  
+
+
 ## Release note, May 17, 2026
 
 ### Firmware 

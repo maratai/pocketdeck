@@ -60,4 +60,8 @@ class esclib:
     return f"\x1b[{color}m"
   def reset_font_color(self):
     return f"\x1b[39m"
+  def bold(self):
+    return "\x1b[1m"
+  def bold_off(self):
+    return "\x1b[22m"
 
