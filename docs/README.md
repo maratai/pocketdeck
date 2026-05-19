@@ -140,27 +140,15 @@ Press the button two times (like double click) to shutdown the device.
 - S-C-c : Copy current line to system clipboard. This is useful with text applications.
 - S-C-v : Paste data from system clipboard
 
-## File structure
-
-### Basic File structure
+## Basic file structure
 
 - `/` : Root folder (Internal flash)
 - `/config` : Folder to store config information
 - `/sd` : SD card root
 - `/sd/Documents` : User documents
-- `/sd/data` : Data like images
-- `/sd/book` : E-Book files
-- `/sd/music` : WAV files (for music app)
 - `/sd/lib` : Built Python applications
-- `/sd/lib/font` : For font
 - `/sd/lib/examples` : Python application examples
 - `/sd/py` : Python application folder for user apps
-
-### Other file structure
-
-- `/cmd_history` : command line history
-- `/sd/log` : Log files
-- `/sd/font` : Font files
 
 ## Getting started
 
@@ -231,3 +219,283 @@ Analog clock (`analog_clock`) is useful application, it has analog clock, calend
 
 `analog_clock_set_timer` command allows to set kitchen timer from command line.
 The following example will set 10 minutes to kitchen timer.
+```
+analog_clock_set_timer 10
+````
+
+
+### Journal
+
+Journal (`journal`) analizes [[journal.md]] and visualizes to chart. Refer [[journal_readme.md]] for detail.
+
+### Music
+
+Music (`music`) is an audio player. Refer [[music_readme.md]] for detail.
+
+### Wavplay
+
+Wavplay (`wavplay`) is an audio player, CLI version of music. It also can play wav file when you specify path to wav file.
+
+### wavfileplay
+
+`wavfileplay` plays a single WAV file directly. Press any key to stop.
+
+```
+wavfileplay filename.wav
+```
+
+### recorder
+
+`recorder` records audio to a WAV file.
+
+```
+recorder [filename] [-s sample_rate] [-l length] [-c channels] [-m]
+```
+
+- Default filename: `/sd/work/rec.wav`
+- `-s`: sample rate (default 24000)
+- `-l`: recording length in seconds, or minutes with `m` suffix e.g. `30m` (default 3600)
+- `-c`: number of channels, 1 for mono, 2 for stereo (default 2)
+- `-m`: input monitoring mode — hear mic through speaker before starting, press any key to begin recording
+- Press `q` to stop recording. The filename is copied to clipboard when done.
+
+### voicerecorder
+
+`voicerecorder` records mono audio optimized for voice (low sample rate, small file size).
+
+```
+voicerecorder [filename] [-l length] [-s sample_rate]
+```
+
+- Default filename: `/sd/work/voice.wav`
+- `-s`: sample rate (default 8000)
+- `-l`: length in seconds, or minutes with `m` suffix e.g. `30m` (default 7200)
+- Press Enter or `q` to stop. The filename is copied to clipboard when done.
+
+### nudoc
+
+`nudoc` is a Sudoku game.
+
+```
+nudoc [easy|medium|hard|board_file]
+```
+
+You can also pass a board file directly.
+
+- Arrow keys: move cursor
+- 1–9: select a number
+- Enter: place selected number in current cell
+- BS: toggle note mode (pencil marks)
+- q: open quit dialog
+- Touchpad: acts as a 3×3 numpad for number selection
+- Slide bar: scroll to change selected number
+
+#### Nudoc Board file
+
+Nudoc app can read custom board file.
+
+Custom board file syntax is simple text file:
+```
+800000000
+003600000
+070090200
+050007000
+000045700
+000100030
+001000068
+008500010
+090000400
+```
+
+### flashcards
+
+`flashcards` is a flash card app to learn words.
+This app requires OpenAI API setup to support read aloud and example sentence generation.
+
+Options:
+- `-r` : Reverse the answer and the question.
+- `-v` : No voice
+
+- Up : Reverse mode
+- Down : Open menu
+- Enter : See answer, go next word
+
+#### Word file syntax
+
+A word file for `flashcards` is simple Markdown file.
+
+Here is an example.
+
+```Markdown
+# Hard one
+- judicious : Showing good judgement, wisely chosen
+- inscription : Words written or carved on a surface, like a stone, monument, or book.
+
+Other sentences are just ignored.
+```
+
+### reader
+
+`reader` is an E-book reader app.
+
+```
+reader [options] book_filename
+```
+
+Options:
+- `-v` : vertical text(for Japanese)
+- `-f font` : Font. uni, lub1, lub2, cen1 or cen2.
+- `-j` : for Horizontal Japanese text
+
+For Japanese text, Adding `-v -f uni` options is recommended.
+
+
+### invader
+
+`invader` is a Space Invaders game.
+
+- Left/Right touch buttons: move ship
+- A button: shoot laser
+- Left mouse button (square left button): quit
+
+### zen_chamber
+
+`zen_chamber` is an ambient audio-visual app. Particles fall under gravity and trigger notes from a musical scale, creating generative music.
+
+- Touchpad: tilt gravity direction
+- Slide bar (right): increase simulation energy and morph sound
+- Dial: adjust number of particles (1–8)
+- A button: transpose key clockwise on circle of fifths (+7 semitones)
+- B button: transpose key counter-clockwise (−7 semitones)
+- A+B together: cycle through scale modes
+- Bottom-right button: quit
+
+### gpt
+
+gpt (`gpt`) is ChatGPT frontend. Refer [[gpt_readme.md]] for detail.
+
+### gpt_rt
+
+`gpt_rt` is a real-time voice agent using the OpenAI Realtime API. It opens a full-duplex audio conversation over WebSocket — you speak and the AI responds in near real time, with server-side voice activity detection handling turn changes automatically. Requires OpenAI API key at `/config/openai_api_key`.
+
+```
+gpt_rt [-m model] [-f file [file...]] [-a]
+```
+
+Option | Description
+-------|------------
+`-m model` | Model to use (default: `gpt-realtime-2`)
+`-f file [file...]` | Attach one or more files as reference context for the session
+`-a` | Agent mode — enables function calling (see below)
+
+**Controls:**
+
+Key | Action
+----|-------
+Enter | Toggle microphone mute/unmute
+`q` or B button | Quit
+
+LED is lit while the microphone is active and turns off when muted.
+
+Barge-in is supported: speaking while the AI is talking interrupts the response and clears the audio queue.
+
+#### Agent Mode (`-a`)
+
+In agent mode the AI can take actions on the device during the conversation. AI can launch applications and write file.:
+
+App and agent app lists are loaded from `/config/apps.json` and `/config/agent_apps.json` so the AI knows which apps are available to launch.
+
+### stt
+
+`stt` is a Speech-to-Text app using OpenAI Whisper API. Requires OpenAI API key at `/config/openai_api_key`.
+
+```
+stt [wav_file] [-o output_file]
+```
+
+- With no arguments: press any key to record, then transcribes and copies result to clipboard. Press `q` to quit.
+- `wav_file`: transcribe an existing WAV file directly.
+- `-o file`: save transcription to a file instead of clipboard.
+
+### tts
+
+TTS (Text-to-Speech) app. Requires OpenAI API key.
+
+### dic
+
+`dic` looks up the meaning of a word using ChatGPT. Result is not saved to log.
+
+```
+dic [-j] word
+```
+
+- `-j`: answer in Japanese
+
+### gdrive 
+
+`gdrive` is Google drive integration. You can upload files to Google drive. 
+
+`gdrive src dst`
+
+-n : no save the result to log file
+-j : answer in Japanese (It's just adding "and answer in Japanese" at the end of the message). You need to set terminal font to support Japanese characters. setjpf or setuni to change terminal font.
+
+### sync
+
+`sync` is a bidirectional file sync tool that keeps folders on Pocket Deck in sync with a remote machine over SSH. It uses MD5 checksums to detect changes and syncs only what has changed. When both sides have modified the same file, the newer one wins.
+
+Authentication uses the private key at `/config/ssh/id_rsa` by default, or a password per remote.
+See [[ssh_scp_readme]] for details.
+
+Config is stored in `/config/sync.json` and is created automatically on first run.
+
+**Managing remotes**
+
+```
+sync remote add <name> <host> <local> <remote> [password]
+sync remote remove <name>
+sync remote list
+sync remote
+```
+
+Example:
+
+```
+sync remote add notes user@192.168.1.10 /sd/Documents /home/user/Documents
+```
+
+**Syncing**
+
+```
+sync exec <name>
+```
+
+Example:
+
+```
+sync exec notes
+```
+
+## Change boot sequence
+
+You can customermize boot sequence.
+
+Edit /main.py and uncomment / comment applications. 
+
+## Micropython Application development
+
+You can make your own applications. Refer [[app_development.md]] for detail.
+
+
+## Updating built-in applications and firmware
+
+You can update applications and firmware through WiFi connection.
+
+1. Connect to Internet (`wifi` command)
+
+2. Execute `update` command to update MicroPython applications.
+
+3. Execute `update_firmware` command to update firmware. When download is complete, all four LEDs are on and system will reboot the device to enter firmware update mode. When it's done, firmware updater prints `Done. Reset the unit`. Reset the device. (Unplug power without Lipo. Double click power button with Lipo.
+
+
+
