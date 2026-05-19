@@ -219,6 +219,7 @@ Analog clock (`analog_clock`) is useful application, it has analog clock, calend
 
 `analog_clock_set_timer` command allows to set kitchen timer from command line.
 The following example will set 10 minutes to kitchen timer.
+
 ```
 analog_clock_set_timer 10
 ````
@@ -401,9 +402,17 @@ Barge-in is supported: speaking while the AI is talking interrupts the response 
 
 #### Agent Mode (`-a`)
 
-In agent mode the AI can take actions on the device during the conversation. AI can launch applications and write file.:
+In agent mode the AI can take actions on the device during the conversation. AI understands Pocket Deck and it can launch applications and write file.:
 
 App and agent app lists are loaded from `/config/apps.json` and `/config/agent_apps.json` so the AI knows which apps are available to launch.
+
+For example, you can ask:
+
+- List files in /sd/Documents and starts with word XXX.
+- Set a timer for 10 minutes (It will open analog_clock's timer, because AI knows analog_clock_set_timer command exists)
+- How can I search string in PEM editor?
+- Make a Sudoku board file for me and save it under /sd/data. And then open Nudoc app with the board file.
+- I need to write a short essay, talking about sea animals. Give me a quick start template and save it as sea_animals.md.
 
 ### stt
 
