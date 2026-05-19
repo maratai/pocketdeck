@@ -819,9 +819,9 @@ class RealtimeAgent:
 
     if time.ticks_diff(time.ticks_ms(), self.last_stat_time) > 2000:
       fill = (self._ring_wpos - self._ring_rpos + self._ring_size) % self._ring_size
-      print("[spk] underruns=%d drops=%d cb_max=%d us fill=%d buf=%s" % (
-        self.underrun_count, self.drop_count, self.cb_time_max,
-        fill, "Y" if self.buffering else "N"))
+      #print("[spk] underruns=%d drops=%d cb_max=%d us fill=%d buf=%s" % (
+      #  self.underrun_count, self.drop_count, self.cb_time_max,
+      #  fill, "Y" if self.buffering else "N"))
       self.cb_time_max = 0
       self.underrun_count = 0
       self.drop_count = 0
