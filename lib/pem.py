@@ -1645,28 +1645,27 @@ class editor_file:
       return True
     return False
 
-  def push_pos_history(self,pos):
-    # Detect Duplication
-    if len(self.pos_history) > 0 and self.phistory_cur > 0 and pos[2] == self.pos_history[self.phistory_cur-1][2] and pos[3] == self.pos_history[self.phistory_cur-1][3]:
-      return
+  def push_pos_history(self, pos):
+    # If current entry is same, do nothing
+    if 0 <= self.phistory_cur < len(self.pos_history):
+      if pos == self.pos_history[self.phistory_cur]:
+        return
 
-    #if len(self.pos_history) > 0:
-    
-    self.pos_history.insert(self.phistory_cur,pos)
-    self.phistory_cur += 1
+    # Discard forward history when creating a new branch
+    if self.phistory_cur < len(self.pos_history) - 1:
+      del self.pos_history[self.phistory_cur + 1:]
 
-    #print(f"pos history saved to #{self.phistory_cur}:{pos[2]},{pos[3]}")
-    #if len(self.pos_history) == 0:
-    #  self.phistory_cur += 1
+    self.pos_history.append(pos)
+    self.phistory_cur = len(self.pos_history) - 1
 
+    # Limit size
     if len(self.pos_history) > 30:
-      if self.phistory_cur > 10:
-        del self.pos_history[-1]
-      else:
-        del self.pos_history[0]
-      #self.phistory_cur -= 1
-      if self.phistory_cur > len(self.pos_history):
-        self.phistory_cur = len(self.pos_history)
+      overflow = len(self.pos_history) - 30
+      del self.pos_history[:overflow]
+      self.phistory_cur -= overflow
+      if self.phistory_cur < 0:
+        self.phistory_cur = 0
+
 
   def walk_pos_history(self,step):
     if self.phistory_cur+step < 0 or self.phistory_cur+step >= len(self.pos_history):

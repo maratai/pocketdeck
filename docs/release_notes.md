@@ -1,3 +1,10 @@
+## Release Note, May 19, 2026
+
+### Application
+
+- PEM : Jump history Bug fix 
+- reader : Markdown table support
+
 ## Release note, May 18, 2026
 
 ### Firmware
