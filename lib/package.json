@@ -744,7 +744,7 @@
         },
         {
             "path": "gpt_rt.py",
-            "md5": "3595c02c8bac986d38c73a3be44fb999"
+            "md5": "46f7e96d26850827afec9f32d002f3d4"
         },
         {
             "path": "pngreader.py",
@@ -840,7 +840,7 @@
         },
         {
             "path": "pem.mpy",
-            "md5": "3256b621bdca97677ec28ca108ff4637"
+            "md5": "42776293559fe59a2b7959cb903cb58b"
         },
         {
             "path": "update_updater.py",
@@ -1028,7 +1028,7 @@
         },
         {
             "path": "data/agent_mode.md",
-            "md5": "1c3402cb2aebdd2dddaf9c23d0340e32"
+            "md5": "e63fe1bf1fd6c0461ac0882dee9c23c4"
         },
         {
             "path": "data/cat4.xbmr",

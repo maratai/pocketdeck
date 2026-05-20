@@ -8,6 +8,7 @@
 
 - stt : silent and language option added
 - pem : speech-to-text command added (C-c s)
+- gpt_rt : Less audio glitches
 
 
 ## Release Note, May 19, 2026

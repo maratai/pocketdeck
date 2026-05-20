@@ -61,6 +61,8 @@ cat.main(vs, ["cat", "/sd/work/temp.txt"])
 vs.close()
 ```
 
+Do not use Python execute block just to write file or patching file. Use File creation feature for reliable workflow.
+
 ## 3. Recursive Chaining (`iterate`)
 To analyze the results of a command you just executed, you can invoke yourself again using the `iterate` block. This acts exactly like calling the `gpt` command line tool. You can keep using `-a` option for possible another round of iteration until the task is completed.
 

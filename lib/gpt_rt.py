@@ -316,7 +316,7 @@ class RealtimeAgent:
 
     # Lock-free single-producer/single-consumer ring buffer for audio playback.
     # Main thread writes; callback reads. No lock needed.
-    self._ring_size = 262144*2  # 256 KB ≈ 5.3 s at 24 kHz PCM16 mono
+    self._ring_size = 262144*4  # 256 KB ≈ 5.3 s at 24 kHz PCM16 mono
     self._ring = bytearray(self._ring_size)
     self._ring_mv = memoryview(self._ring)
     self._ring_wpos = 0  # written only by main thread
@@ -350,8 +350,11 @@ class RealtimeAgent:
     t0 = time.ticks_us()
     dest = self.spk_bufs[index]
     buf_size = len(dest)
-    rpos = self._ring_rpos
-    fill = (self._ring_wpos - rpos + self._ring_size) % self._ring_size
+    rpos = self._ring_rpos % self._ring_size
+    fill = (self._ring_wpos - self._ring_rpos)  % self._ring_size
+
+    pdeck.led(2,int(fill * (100 / self._ring_size)))
+
 
     if self.buffering:
       if fill >= self.buffer_threshold and time.ticks_diff(time.ticks_ms(), self.mute_until) >= 0:
@@ -374,7 +377,7 @@ class RealtimeAgent:
           tail = self._ring_size - rpos
           dest[:tail] = self._ring_mv[rpos:]
           dest[tail:fill] = self._ring_mv[:fill - tail]
-        self._ring_rpos = (rpos + fill) % self._ring_size
+        self._ring_rpos += fill #) % self._ring_size
       dest[fill:buf_size] = self.zero_buf[:buf_size - fill]
     else:
       end = rpos + buf_size
@@ -384,7 +387,7 @@ class RealtimeAgent:
         tail = self._ring_size - rpos
         dest[:tail] = self._ring_mv[rpos:]
         dest[tail:buf_size] = self._ring_mv[:buf_size - tail]
-      self._ring_rpos = end % self._ring_size
+      self._ring_rpos += buf_size #end % self._ring_size
       self.last_play_time = time.ticks_ms()
 
     duration = time.ticks_diff(time.ticks_us(), t0)
@@ -498,15 +501,17 @@ class RealtimeAgent:
       audio_b64 = delta
     if audio_b64:
       #pdeck.led(2,0)
-      #pdeck.led(3,0)
+      pdeck.led(3,0)
       raw = ubinascii.a2b_base64(audio_b64)
       #pdeck.led(2,40)
       n = len(raw)
-      wpos = self._ring_wpos
-      rpos = self._ring_rpos
-      fill = (wpos - rpos + self._ring_size) % self._ring_size
+      wpos = self._ring_wpos % self._ring_size
+      rpos = self._ring_rpos % self._ring_size
+      fill = (self._ring_wpos - self._ring_rpos + self._ring_size) % self._ring_size
+      pdeck.led(2,int(fill * (100 / self._ring_size)))
       if n > self._ring_size - fill:
         self.drop_count += 1
+        pdeck.led(2,100)
         return  # ring full; drop rather than corrupt
       end = wpos + n
       if end <= self._ring_size:
@@ -516,9 +521,9 @@ class RealtimeAgent:
         raw_mv = memoryview(raw)
         self._ring_mv[wpos:] = raw_mv[:tail]
         self._ring_mv[:n - tail] = raw_mv[tail:]
-      self._ring_wpos = end % self._ring_size
+      self._ring_wpos += n #% self._ring_size
       #pdeck.led(2,0)
-      #pdeck.led(3,20)
+      pdeck.led(3,5)
 
   def handle_text_delta(self, msg):
     delta = msg.get("delta")
@@ -818,7 +823,7 @@ class RealtimeAgent:
         print("Message Error:", e, "Frame:", frame[:80], file=self.vs)
 
     if time.ticks_diff(time.ticks_ms(), self.last_stat_time) > 2000:
-      fill = (self._ring_wpos - self._ring_rpos + self._ring_size) % self._ring_size
+      fill = (self._ring_wpos - self._ring_rpos)
       #print("[spk] underruns=%d drops=%d cb_max=%d us fill=%d buf=%s" % (
       #  self.underrun_count, self.drop_count, self.cb_time_max,
       #  fill, "Y" if self.buffering else "N"))
@@ -902,9 +907,10 @@ def main(vs, args_in):
         elif keys == b'\r':
           ra.toggle_mic_mute()
 
-      time.sleep(0.01)
+      time.sleep(0.005)
       #pdeck.delay_tick(12)
   finally:
     ra.terminate()
-    
+    pdeck.led(2,0)
+    pdeck.led(3,0)
 
