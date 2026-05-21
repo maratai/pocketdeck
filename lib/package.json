@@ -205,6 +205,10 @@
             "dic.py"
         ],
         [
+            "docs.py",
+            "docs.py"
+        ],
+        [
             "download_drumkit_uzu.py",
             "download_drumkit_uzu.py"
         ],
@@ -756,7 +760,7 @@
         },
         {
             "path": "gpt.py",
-            "md5": "729ac60d525a49d5b228863e0c76d8cd"
+            "md5": "1726f0a213e7d2852fb252d39e908824"
         },
         {
             "path": "argparse.py",
@@ -817,6 +821,10 @@
         {
             "path": "pem_keymap_default.py",
             "md5": "67ee3fd12279025fbefad35e9876b2f1"
+        },
+        {
+            "path": "docs.py",
+            "md5": "f6cc7e025c314b1754a08a66421d9603"
         },
         {
             "path": "xbm2xbmr.py",

@@ -582,10 +582,10 @@ def format(message):
     if numfound&1:
       result += el.set_font_color(1)
     else:
-      result += el.reset_font_color()
+      result += el.bold_off()
     message = message[pos+2:]
   if numfound & 1:
-    result += el.reset_font_coloe()
+    result += el.bold_off()
   return result
 
 def main(vs, args_in):

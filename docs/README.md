@@ -232,6 +232,7 @@ Journal (`journal`) analizes [[journal.md]] and visualizes to chart. Refer [[jou
 
 Music (`music`) is an audio player. Refer [[music_readme.md]] for detail.
 
+
 ### Wavplay
 
 Wavplay (`wavplay`) is an audio player, CLI version of music. It also can play wav file when you specify path to wav file.
@@ -370,6 +371,7 @@ For Japanese text, Adding `-v -f uni` options is recommended.
 - A+B together: cycle through scale modes
 - Bottom-right button: quit
 
+
 ### gpt
 
 gpt (`gpt`) is ChatGPT frontend. Refer [[gpt_readme.md]] for detail.
@@ -423,6 +425,15 @@ stt [options] [wav_file] [-o output_file]
 ### tts
 
 TTS (Text-to-Speech) app. Requires OpenAI API key.
+
+### docs
+
+`docs` is an AI help agennt for Pocket Deck. OpenAI API key is required.
+
+```
+docs how can I quit PEM editor?
+docs give me a summary of Pocket Deck
+```
 
 ### dic
 
