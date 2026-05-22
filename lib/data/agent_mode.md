@@ -72,6 +72,4 @@ To analyze the results of a command you just executed, you can invoke yourself a
 -q "Read the attached temp.txt and tell me the top three largest files."
 ```
 
-### ⚠️ CRITICAL RULES FOR CHAINING ⚠️
-1. **One Step at a Time**: You cannot execute code and read its output in the *same* response. You must first use `python:execute` to run the code and save it to `/sd/work/temp.txt`, and *simultaneously* use an `iterate` block to schedule your next turn to read that file.
-2. **Clean Output**: When chaining steps, keep conversational text to a minimum. Output the `python:execute` and `iterate` blocks clearly so the parser can handle them without errors.
+

@@ -1,3 +1,16 @@
+## Release Note May 21, 2026
+
+### Firmware
+
+- Add ctrl-d support on command line
+- Alt+1 for '`' , and Alt+2 for '~'
+
+### Application 
+
+- Recorder : Level indicator added
+- Music : Multi-level folder support
+- gpt : added --effort option.
+
 ## Release Note, May 20, 2026
 
 ### Firmware

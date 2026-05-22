@@ -620,7 +620,7 @@
         },
         {
             "path": "analog_clock.py",
-            "md5": "35b2a82030c76b37929d51b225a09808"
+            "md5": "e83c28af02cedc0d684b05e6fabc2bc4"
         },
         {
             "path": "ble_manager.py",
@@ -744,11 +744,11 @@
         },
         {
             "path": "esclib.py",
-            "md5": "4633bb65f4425017712dc0a78de99dbb"
+            "md5": "932b3a1e5255e4ad809a409c7b7f63a2"
         },
         {
             "path": "gpt_rt.py",
-            "md5": "46f7e96d26850827afec9f32d002f3d4"
+            "md5": "9f836d31469013cc7a7b91d7d1457416"
         },
         {
             "path": "pngreader.py",
@@ -760,7 +760,7 @@
         },
         {
             "path": "gpt.py",
-            "md5": "1726f0a213e7d2852fb252d39e908824"
+            "md5": "53a47394184a4fc4fc72ce12d89471e8"
         },
         {
             "path": "argparse.py",
@@ -812,11 +812,11 @@
         },
         {
             "path": "ls.mpy",
-            "md5": "f62bf8b64d8aa50f35c1c6264d4593f1"
+            "md5": "ec68a1b28c307dd9484476227ccd34c9"
         },
         {
             "path": "music.py",
-            "md5": "2c43ddd2617f166e414313eb6c2a666c"
+            "md5": "8c63dfe15e45c6e1b4621bee6c842d68"
         },
         {
             "path": "pem_keymap_default.py",
@@ -860,7 +860,7 @@
         },
         {
             "path": "recorder.py",
-            "md5": "bce219ad447804632d19e0d6c3890b2a"
+            "md5": "c25dff6fac20b2edb80499ac25cf1e10"
         },
         {
             "path": "cat.py",
@@ -1036,7 +1036,7 @@
         },
         {
             "path": "data/agent_mode.md",
-            "md5": "e63fe1bf1fd6c0461ac0882dee9c23c4"
+            "md5": "8d4e23e5b6e597636b9cb9f58519f3e0"
         },
         {
             "path": "data/cat4.xbmr",

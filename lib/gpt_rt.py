@@ -436,7 +436,7 @@ class RealtimeAgent:
         {
           "type": "function",
           "name": "command_with_return",
-          "description": "Run a text command and return its output. Use to answer questions about files or content. Supported: ls (list files, supports glob patterns like 'word*'), cat (read file), grep (search in files), and curl (get content from web). Detailed usage are stated in README.md..",
+          "description": "Run a text command and return its output. Use to answer questions about files or content. Supported: ls (list files, supports glob patterns like 'word*'), cat (read file), grep (search in files), and curl (get content from web). You can't use pipe '|', it's not Linux.Detailed usage are stated in README.md..",
           "parameters": {
             "type": "object",
             "properties": {
@@ -511,7 +511,8 @@ class RealtimeAgent:
       pdeck.led(2,int(fill * (100 / self._ring_size)))
       if n > self._ring_size - fill:
         self.drop_count += 1
-        pdeck.led(2,100)
+        #pdeck.led(2,100)
+        print("Ring buffer full. Dropping")
         return  # ring full; drop rather than corrupt
       end = wpos + n
       if end <= self._ring_size:
@@ -740,7 +741,7 @@ class RealtimeAgent:
           arguments = self.pending_fn_calls[call_id].get("args", "")
         print("\n%s[Call]%s %s %s" % (_el.bold(), _el.bold_off(), fn_name, arguments), file=self.vs)
         result = self.execute_function_call(call_id, fn_name, arguments)
-        print("%s[Result]%s %s" % (_el.bold(), _el.bold_off(), result), file=self.vs)
+        print("%s[Result]%s %s" % (_el.bold(), _el.bold_off(), result[:200]), file=self.vs)
         self.send_function_result(call_id, result)
         self.pending_fn_calls.pop(call_id, None)
 

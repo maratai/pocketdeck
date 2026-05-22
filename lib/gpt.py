@@ -71,6 +71,16 @@ def parse_inline_directives(message, references, images, args, vs):
             ok = False
             break
 
+        elif opt == '-e' or opt == '--effort':
+          if i + 1 < len(opt_args):
+            mod_args['effort'] = opt_args[i + 1]
+            i += 2
+            handled = True
+          else:
+            print("Inline option error: -e requires a value", file=vs)
+            ok = False
+            break
+
         elif opt == '-j' or opt == '--jp':
           mod_args['jp'] = True
           i += 1
@@ -168,7 +178,7 @@ def read_api_key():
 
 def make_log_filename():
   ctime = time.gmtime(time.time()+pu.timezone*60*15)
-  return f"/sd/log/gptlog{ctime[1]:02}{ctime[2]:02}_{ctime[3]:02}{ctime[4]:02}"
+  return f"/sd/log/gptlog{ctime[1]:02}{ctime[2]:02}_{ctime[3]:02}{ctime[4]:02}.md"
 
 def append_log(filename, text):
   try:
@@ -224,7 +234,7 @@ class chatgpt_util:
     return False if self.api_key == False else True
     
 
-  def make_json(self, message, references, images=None, model="gpt-5.5", instructions = None):
+  def make_json(self, message, references, images=None, model="gpt-5.5", instructions = None, effort="medium"):
     content_items = []
     
     # Add text message
@@ -253,6 +263,9 @@ class chatgpt_util:
 
     payload_dic = {
         "model" : model,
+        "reasoning" : {
+          "effort" : effort
+        },
         "tools" : [
           { "type" : "web_search" }
           ],
@@ -601,6 +614,7 @@ def main(vs, args_in):
   parser.add_argument('-f', '--file',nargs='+',action='store',help='Attach file(s) as reference. file1 file2...')
   parser.add_argument('-i', '--image', nargs='+', action='store',help='Attach image file(s) or image url(s). img1 img2...')
   parser.add_argument('-m', '--model',action='store',default='gpt-5.4',help='Model to use (e.g. gpt-5-mini)')
+  parser.add_argument('-e', '--effort',action='store',default='medium',help='Reasoning effort (low, medium, high)')
   parser.add_argument('-v', '--voice',action='store_true',help='Use voice mode (STT and TTS)')
   parser.add_argument('-vt', '--voice-type',action='store',default='coral',help='Voice type for TTS (alloy, coral, echo, fable, onyx, nova, shimmer)')
   parser.add_argument('--log-file', action='store', default=None, help='Internal: reuse the same log filename across iterations')
@@ -742,10 +756,16 @@ def main(vs, args_in):
     model = 'gpt-5.5'
   elif model in ('f','fast'):
     model = 'gpt-5.4-mini'
+
+  effort = margs['effort'] if 'effort' in margs else args.effort
+  if effort not in ('low', 'medium', 'high'):
+    print(f"Invalid effort: {effort}. Using medium.", file=vs)
+    effort = 'medium'
+
   if not args.silent:
     _anim = ThinkingAnimation(vs, "Asking GPT..")
     
-  raw_response = gpt.ask(gpt.make_json(message, references, images, model, instructions = instructions))
+  raw_response = gpt.ask(gpt.make_json(message, references, images, model, instructions = instructions, effort=effort))
   if not args.silent:
     _anim.stop()
 
@@ -823,7 +843,7 @@ def main(vs, args_in):
       
       if ":" in lang_tag and lang_tag != "python:execute":
         out_filename = lang_tag.split(":", 1)[1].strip()
-        print(f"{el.set_font_color(1)}Agent: Saving to {out_filename}{el.reset_font_color()}", file=vs)
+        print(f"{el.set_font_color(1)}Agent: Saving to {out_filename}{el.bold_off()}", file=vs)
         
         if file_exists(out_filename):
           try:
@@ -858,7 +878,21 @@ def main(vs, args_in):
           
       elif lang_tag == "iterate":
         print(  f"{el.set_font_color(1)}Agent: Iterating...{el.reset_font_color()}", file=vs)
-        iter_args = ['gpt'] + code.split()
+
+        # Skipping the model and effort if AI put them
+        iter_args_in = code_split()
+        iter_args = []
+        skip = False
+        for item in iter_args:
+          if skip:
+            skip = False
+            continue
+          if item in  ('-m', '-e'):
+            skip = True
+            continue
+          iter_args.args.append(item)
+       
+        iter_args = ['gpt', '-m', args.model, '-e', args.effort ] + code.split()
         has_log_file = False
         for item in iter_args:
           if item == '--log-file':
@@ -872,3 +906,4 @@ def main(vs, args_in):
             break
         print(f"{el.set_font_color(1)}Agent: Calling main with {iter_args}{el.reset_font_color()}", file=vs)
         main(vs, iter_args)
+        print(el.bold_off(), file=vs)

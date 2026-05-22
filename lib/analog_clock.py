@@ -75,6 +75,16 @@ class ktimer:
     self.anim = anm.anm_object(100,
     { 'minute': [anm.ease_out, 0,0]})
     self.anim.goal = 0
+
+    # Timer dial range.  This is "minutes per one full D-pad cycle".
+    # It can be changed with the slider.
+    self.range_options = (12, 24, 30, 60)
+    self.range_index = 1
+    self.range_minutes = self.range_options[self.range_index]
+    self.range_anim = anm.anm_object(100,
+    { 'range_minutes': [anm.ease_out, self.range_minutes, self.range_minutes]})
+    self.range_anim.goal = self.range_minutes
+    self.last_slider_range_index = self.range_index
     
 
 class analog_clock:
@@ -87,6 +97,7 @@ class analog_clock:
     self.message_life = 0
     self.du = dsp_utils()
     self.v = v
+    self.slider_start = 0xff
     self.vs = vs
     self.size = 100
     self.seconds_m_size = (85,95)
@@ -124,6 +135,7 @@ class analog_clock:
     self.page = 'clock'
     self.kt = ktimer()
     self.seq.register('timer_hand', self.kt.anim)
+    self.seq.register('timer_range', self.kt.range_anim)
     self.wavbuf = array.array('h',bytearray(0x10000))
     phase = 0
     for i in range(0x4000):
@@ -199,8 +211,8 @@ class analog_clock:
     #return
 
     if self.page == 'timer':
-      self.draw_measure()
-      self.draw_numbers(24)
+      self.draw_timer_measure()
+      self.draw_timer_numbers()
       self.draw_timerhand()
       self.draw_timerdigit()
       
@@ -239,6 +251,51 @@ class analog_clock:
     self.v.finished()
     return
 
+  def set_timer_range(self, index):
+    kt = self.kt
+    if index < 0:
+      index = 0
+    if index > 3:
+      index = 3
+    if index >= len(kt.range_options):
+      index = len(kt.range_options) - 1
+    if index == kt.range_index:
+      return
+
+    old_range = kt.range_anim.range_minutes
+    kt.range_index = index
+    kt.range_minutes = kt.range_options[index]
+
+    # Seamless zoom-style range animation: start from the current animated
+    # range, not from the old goal, so slider changes during animation do not
+    # cause a visual snap.
+    kt.range_anim = anm.anm_object(450,
+    { 'range_minutes' : [ anm.ease_in_out, old_range, kt.range_minutes ]})
+    kt.range_anim.goal = kt.range_minutes
+    self.seq.register('timer_range', kt.range_anim)
+    #self.message = 'Timer range: {} min / cycle'.format(kt.range_minutes)
+    #self.message_life = 55
+    self.wavplay_click()
+    self.key_event = True
+
+  def update_timer_range_from_slider(self, slider):
+    if slider == 0xff:
+      self.slider_start = 0xff
+      return
+      
+    if self.slider_start == 0xff:
+      self.slider_start = slider
+    index = 0    
+    if slider - self.slider_start > 10:
+      index = 1
+      self.slider_start +=10
+    if slider - self.slider_start < -10:
+      index = -1
+      self.slider_start -=10
+
+    if index != 0:
+      self.set_timer_range(self.kt.range_index+index)
+
   def update_timer(self):
     kt = self.kt
     if kt.stat == KT_ALARM:
@@ -271,6 +328,12 @@ class analog_clock:
     input = self.v.get_tp_keys()
     if not input:
       return
+
+    # Slider changes timer scale/range.  It works while the timer app is open
+    # so the clock screen does not accidentally change the kitchen-timer range.
+    if self.page == 'timer':
+      self.update_timer_range_from_slider(input[0])
+
     mb = input[3]
     if mb&1 != 0:
       self.page = 'clock'
@@ -310,14 +373,11 @@ class analog_clock:
       dial_distance = dial - kt.dial_base + kt.cycles*160
         
       kt.last_dial = dial
-      #if dial_distance > 30:
-      #  dial_distance = dial - (kt.dial_base + 160)
-      #elif dial_distance < -30:
-      #  dial_distance = (dial+160) - kt.dial_base
       last_minute = kt.minute
-      dist = int(dial_distance / 6.66)
-      #if dist < 5:
-      kt.minute = kt.org_minute + int(dial_distance / 6.66)
+
+      # One D-pad cycle is 160 units.  Make "minutes per cycle" selectable.
+      minute_per_dial_unit = kt.range_minutes / 160.0
+      kt.minute = kt.org_minute + int(dial_distance * minute_per_dial_unit)
       
       if kt.minute < 0:
         kt.minute = 0
@@ -463,10 +523,49 @@ class analog_clock:
         num = str(((i + 2) % ncount) + 1)
       elif ncount == 24:
         num = str(((i + 5) % ncount) + 1)
+      else:
+        num = str(i)
       extra = 3 if len(num) == 2 else -1
       
+      self.v.set_font_mode(1)
       self.v.draw_str(x-3-extra,y+6, num)
+      self.v.draw_str(x-3-extra+1,y+6, num)
+      self.v.set_font_mode(0)
 
+  def draw_timer_numbers(self):
+    kt = self.kt
+    rng = kt.range_anim.range_minutes
+    if rng <= 0:
+      rng = kt.range_minutes
+
+    # Draw a readable set of major labels.  The angle is computed from the
+    # animated range, so changing 12/24/30/60 behaves like smooth zoom.
+    if kt.range_minutes <= 12:
+      step = 1
+    elif kt.range_minutes <= 30:
+      step = 5
+    else:
+      step = 10
+
+    self.v.set_font("u8g2_font_profont15_mf")
+    label = 0
+    while label < kt.range_minutes:
+      angle = (label / rng) * twopi - dc["0.5 * 3.1415926536"]
+      x = self.du.cos(angle) * self.number_size
+      y = self.du.sin(angle) * self.number_size
+      x += self.offset[0]
+      y += self.offset[1]
+      x = int(x)
+      y = int(y)
+      num = str(label if label != 0 else kt.range_minutes)
+      extra = 3 if len(num) == 2 else -1
+      self.v.set_font_mode(1)
+      self.v.draw_str(x-3-extra,y+6, num)
+      #if int(num) == kt.range_minutes:
+      self.v.draw_str(x-3-extra+1,y+6, num)
+      self.v.set_font_mode(0)
+      
+      label += step
 
   def draw_edge(self):
     self.v.draw_disc(self.offset[0], self.offset[1], self.size+2,0xf) # 0xf = DRAW_ALL
@@ -486,13 +585,17 @@ class analog_clock:
     self.v.set_font("u8g2_font_profont15_mf")
     self.v.draw_str(self.coffset[0] - 60, self.offset[1] + 30, 'Rotate your finger')
     self.v.draw_str(self.coffset[0] - 60, self.offset[1] + 30 + 16, 'on D-pad to set time')
+    self.v.draw_str(self.coffset[0] - 60, self.offset[1] + 30 + 32, 'Slider: {} min/cycle'.format(self.kt.range_minutes))
     
 
   def draw_timerhand(self):
     minute = self.kt.anim.minute
     second = self.kt.second
     h = minute + second * dc["1/60"]
-    angle = h * dc["pi * 2 / 24"] 
+    rng = self.kt.range_anim.range_minutes
+    if rng <= 0:
+      rng = self.kt.range_minutes
+    angle = h * dc["pi * 2"] / rng
   
     point_pair = ( \
       ( -10, 10 ), \
@@ -598,6 +701,40 @@ class analog_clock:
       size1 = self.seconds_m_size[0]
       if i % 3 == 0:
         size1 -= 2
+      else:
+        size1 += 4
+      x1 = self.du.cos(angle) * size1
+      x2 = self.du.cos(angle) * self.seconds_m_size[1]
+      y1 = self.du.sin(angle) * size1
+      y2 = self.du.sin(angle) * self.seconds_m_size[1]
+      x1 += self.offset[0]
+      x2 += self.offset[0]
+      y1 += self.offset[1]
+      y2 += self.offset[1]
+      
+      self.v.draw_line(int(x1),int(y1),int(x2),int(y2))
+
+  def draw_timer_measure(self):
+    kt = self.kt
+    rng = kt.range_anim.range_minutes
+    if rng <= 0:
+      rng = kt.range_minutes
+
+    # Show one tick per minute for 12/24/30, and one tick per 2 minutes for
+    # 60 so the dial stays readable.
+    if kt.range_minutes <= 30:
+      tick_count = kt.range_minutes
+      tick_step = 1
+    else:
+      tick_count = 30
+      tick_step = 2
+
+    for i in range(tick_count):
+      minute_mark = i * tick_step
+      angle = minute_mark * dc["pi * 2"] / rng
+      size1 = self.seconds_m_size[0]
+      if minute_mark % 5 == 0:
+        size1 -= 4
       else:
         size1 += 4
       x1 = self.du.cos(angle) * size1
@@ -799,6 +936,3 @@ def main(vs, args):
   v.print(el.display_mode(True))
   print("finished.", file=vs)
   v.callback(None)
-    
-
-  
