@@ -1,3 +1,15 @@
+## Release Note May 23, 2026
+
+## Firmware
+
+- command shell : history crash fix
+- modiication for TAB completion
+
+## Application
+
+- analog_clock : Filling arc was added to the timer.
+- Command line shell : Powerful command line TAB completion, it works on command and files and command history. Just press TAB to show command list.
+
 ## Release Note May 21, 2026
 
 ### Firmware

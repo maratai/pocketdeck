@@ -1,4 +1,5 @@
 import network, socket
+import auto_connect
 import codec_config
 import ujson
 import wifi
@@ -623,8 +624,8 @@ def main(vs, args_in):
 
   args = parser.parse_args(args_in[1:])
 
-  if not pdeck.wifi_connected():
-    print("No WiFi connection", file=vs)
+  if not auto_connect.check(vs, silent = True):
+    print("Network is not available", file=vs)
     return
 
   gpt = chatgpt_util(vs)

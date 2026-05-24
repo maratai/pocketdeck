@@ -36,6 +36,7 @@ import argparse
 import array
 import jp_input
 import ls
+import auto_connect
 
 el = elib.esclib()
 
@@ -1413,6 +1414,7 @@ class editor:
     # Input method toggle
     elif keys in km.map['ime_jp_toggle']:
       if self.file.input_method == self.IM_EN:
+        auto_connect.check(self.v, silent = True)
         self.file.input_method = self.IM_JP
         if not self.jpfont_loaded:
           self.load_jpfont()

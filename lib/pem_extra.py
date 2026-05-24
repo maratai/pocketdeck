@@ -12,9 +12,17 @@ def stt(editor):
   import stt
   import mock_stream
   import pdeck
-  if not pdeck.wifi_connected:
-    editor.set_message("No Wifi")
+  import auto_connect
+
+  editor.set_message("Checking connection..")
+  editor.refresh_screen()
+  if not auto_connect.check(editor.v, silent = True):
+    editor.set_message("Network is not available")
     return
+    
+  #if not pdeck.wifi_connected:
+  #  editor.set_message("No Wifi")
+  #  return
   st = mock_stream.mock_stream(b'', editor.v)
   editor.set_message("Any key to stop record")
   editor.refresh_screen()

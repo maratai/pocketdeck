@@ -204,6 +204,13 @@ Home app is an app to launch apps and change settings.
 - Arrow keys, Enter and BS : Navigate menu
 - R bottom button in launch app list : Open application list menu. You can add, move and delete app. The data is saved in /config/apps.json. You can edit the file manually.
 
+### Command line terminal
+
+`cmd [screen_number]` is command line terminal.
+
+It has powerful completion. Press TAB to open application list. TAB completion works on command, file, and command line history.
+
+
 ### Pem editor
 
 Pem (`pem`) is emacs-inspired powerful editor written by Python. See [[pem_readme]] for detail. 

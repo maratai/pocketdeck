@@ -131,6 +131,7 @@ class analog_clock:
     self.cat_anm_goal = 0
     self.cat_anm_ct = 0
     self.cat_x = 0
+    self.setup_filled_arc()
     #self.last_us=0
     self.page = 'clock'
     self.kt = ktimer()
@@ -211,6 +212,7 @@ class analog_clock:
     #return
 
     if self.page == 'timer':
+      self.draw_timer_remaining_disc()
       self.draw_timer_measure()
       self.draw_timer_numbers()
       self.draw_timerhand()
@@ -586,6 +588,112 @@ class analog_clock:
     self.v.draw_str(self.coffset[0] - 60, self.offset[1] + 30, 'Rotate your finger')
     self.v.draw_str(self.coffset[0] - 60, self.offset[1] + 30 + 16, 'on D-pad to set time')
     self.v.draw_str(self.coffset[0] - 60, self.offset[1] + 30 + 32, 'Slider: {} min/cycle'.format(self.kt.range_minutes))
+
+
+  def setup_filled_arc(self):
+
+    radius = 52
+    seg_count = 60
+    start_angle = 0
+    end_angle = twopi
+    span = end_angle - start_angle
+    
+    if span > twopi:
+      span = twopi
+      end_angle = start_angle + span
+    cx = self.offset[0]
+    cy = self.offset[1]
+    points = array.array('h',[0,0,0,0,0,0]*60)
+
+    for i in range(seg_count):
+      a0 = start_angle + span * i / seg_count
+      a1 = start_angle + span * (i + 1) / seg_count
+      x0, y0 = self.rotate_pos(0, -radius, a0)
+      x1, y1 = self.rotate_pos(0, -radius, a1)
+      offset = i*6
+      points[offset + 0] = cx
+      points[offset + 1] = int(cx + x0)
+      points[offset + 2] = int(cx + x1)
+      points[offset + 3] = cy
+      points[offset + 4] = int(cy + y0)
+      points[offset + 5] = int(cy + y1)
+      #self.v.draw_polygon(points)
+    self.arc_points = points
+    self.mv_arc_points = memoryview(points)
+
+
+  def draw_filled_arc_disc(self, start_angle, end_angle, radius, dither):
+    if radius <= 0:
+      return
+    if end_angle <= start_angle:
+      return
+
+    span = end_angle - start_angle
+    if span > twopi:
+      span = twopi
+      end_angle = start_angle + span
+
+    seg_count = int(60 * span / twopi) + 1
+    if seg_count < 1:
+      seg_count = 1
+    if span < twopi and seg_count < 2:
+      seg_count = 2
+
+    self.v.set_draw_color(1)
+    self.v.set_dither(dither)
+    for i in range(seg_count):
+      self.v.draw_polygon(self.mv_arc_points[i*6:(i+1)*6])
+
+    self.v.set_dither(16)
+
+  def draw_timer_remaining_disc(self):
+    kt = self.kt
+    rng = kt.range_anim.range_minutes
+    if rng <= 0:
+      rng = kt.range_minutes
+    if rng <= 0:
+      return
+
+    minute = kt.anim.minute
+    second = kt.second
+    remain = minute + second * dc["1/60"]
+    if remain <= 0:
+      return
+
+    radius = 52
+
+    # For one turn, draw one normal pie slice.  For multiple turns, draw
+    # overlapping slices with different dithers:
+    #   1st turn: light full/partial arc
+    #   2nd turn: stronger arc over it
+    #   3rd turn: strongest arc over it
+    # More than three turns is intentionally ignored/capped.
+    if remain <= rng:
+      end_angle = remain * dc["pi * 2"] / rng
+      self.draw_filled_arc_disc(0, end_angle, radius, 4)
+      self.v.set_dither(16)
+      self.v.set_draw_color(1)
+      return
+
+    max_remain = rng * 3
+    if remain > max_remain:
+      remain = max_remain
+
+    dithers = (4, 8, 12)
+    layer = 0
+    while layer < 3:
+      part = remain - rng * layer
+      if part <= 0:
+        break
+      if part > rng:
+        part = rng
+
+      end_angle = part * dc["pi * 2"] / rng
+      self.draw_filled_arc_disc(0, end_angle, radius, dithers[layer])
+      layer += 1
+
+    self.v.set_dither(16)
+    self.v.set_draw_color(1)
     
 
   def draw_timerhand(self):
@@ -604,6 +712,7 @@ class analog_clock:
     #  ( -5, 5))
       
     self.draw_poly(angle, point_pair, 1)
+    
     
   def draw_hourhand(self):
     h = self.hour + self.minute * dc['1/60']

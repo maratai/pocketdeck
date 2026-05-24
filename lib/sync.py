@@ -3,6 +3,7 @@ import ujson
 import hashlib
 import ssh
 import pdeck
+import auto_connect
 
 import esclib as _esclib
 
@@ -277,9 +278,7 @@ def _cmd_exec(vs, cfg, name, pattern=None):
     _p(vs, "Run 'sync remote' to list remotes.")
     return
 
-  if not pdeck.wifi_connected():
-    _p(vs, "WiFi not connected.")
-    return
+  auto_connect.check(vs)
 
   r = remotes[name]
   host = r.get("host", "")
