@@ -1,6 +1,7 @@
 import os
 import ujson
 import hashlib
+import binascii
 import ssh
 import pdeck
 import auto_connect
@@ -19,20 +20,29 @@ _DEFAULT_CONFIG = {
 # so both sides use the same epoch and the device can compare directly.
 _REMOTE_SCRIPT = (
   "import os,hashlib,json,sys,fnmatch\n"
-  "root=sys.argv[1]\n"
-  "pattern=sys.argv[2] if len(sys.argv)>2 else None\n"
+  "root=sys.argv[2]\n"
+  "pattern=sys.argv[3] if len(sys.argv)>3 else None\n"
   "E=946684800\n"
   "r={}\n"
+  "def _md5(p):\n"
+  "  d=open(p,'rb').read()\n"
+  "  try:return hashlib.md5(d,usedforsecurity=False).hexdigest()\n"
+  "  except TypeError:return hashlib.md5(d).hexdigest()\n"
   "if os.path.isdir(root):\n"
   "  for dp,ds,fs in os.walk(root):\n"
   "    for fn in fs:\n"
   "      if pattern and not fnmatch.fnmatch(fn,pattern):continue\n"
   "      p=os.path.join(dp,fn)\n"
   "      rel=os.path.relpath(p,root).replace('\\\\','/')\n"
-  "      st=os.stat(p)\n"
-  "      r[rel]={'md5':hashlib.md5(open(p,'rb').read()).hexdigest(),'mtime':st.st_mtime-E,'size':st.st_size}\n"
+  "      try:\n"
+  "        st=os.stat(p);r[rel]={'md5':_md5(p),'mtime':st.st_mtime-E,'size':st.st_size}\n"
+  "      except Exception:pass\n"
   "print(json.dumps(r))\n"
 )
+# Precomputed once: hex-encode the script so it can be passed as a plain
+# argument to python3 -c, avoiding heredoc (which depends on the remote
+# login shell supporting POSIX syntax — fish does not).
+_REMOTE_SCRIPT_HEX = binascii.hexlify(_REMOTE_SCRIPT.encode()).decode()
 
 
 _el = _esclib.esclib()
@@ -112,7 +122,7 @@ def _build_local_manifest(root, pattern=None):
 def _build_remote_manifest(session, remote_root, pattern=None):
   safe_root = remote_root.replace("'", "'\\''")
   safe_pat = (" '" + pattern.replace("'", "'\\''") + "'") if pattern else ""
-  cmd = f"python3 - '{safe_root}'{safe_pat} << 'PYEOF'\n{_REMOTE_SCRIPT}PYEOF"
+  cmd = f"python3 -c 'import binascii,sys;exec(binascii.unhexlify(sys.argv[1]).decode())' {_REMOTE_SCRIPT_HEX} '{safe_root}'{safe_pat}"
   rc, out = session.exec(cmd)
   if rc != 0 or not out.strip():
     return {}
@@ -159,12 +169,14 @@ def _glob_match(name, pattern):
   return name.endswith(last) and len(name) >= pos + len(last)
 
 
-def _sync_pair(session, local_root, remote_root, vs, pattern=None):
+def _sync_pair(session, local_root, remote_root, vs, pattern=None, dry_run=False):
   _p(vs, f"  local:  {_b(local_root)}")
   _p(vs, f"  remote: {_b(remote_root)}")
 
   if pattern:
     _p(vs, f"  filter: {_b(pattern)}")
+  if dry_run:
+    _p(vs, f"  {_b('[DRY RUN]')}")
 
   _p(vs, "  Scanning local...")
   local = _build_local_manifest(local_root, pattern)
@@ -174,8 +186,9 @@ def _sync_pair(session, local_root, remote_root, vs, pattern=None):
   remote = _build_remote_manifest(session, remote_root, pattern)
   _p(vs, f"  {_b(len(remote))} remote files")
 
-  _makedirs_remote(session, remote_root)
-  _makedirs_local(local_root)
+  if not dry_run:
+    _makedirs_remote(session, remote_root)
+    _makedirs_local(local_root)
 
   pushed = pulled = skipped = errors = 0
 
@@ -192,23 +205,27 @@ def _sync_pair(session, local_root, remote_root, vs, pattern=None):
           continue
         if r["mtime"] > l["mtime"]:
           _p(vs, f"  [C] {_b('pull')} {rel}")
-          _makedirs_local(_parent(local_abs))
-          session.get(remote_abs, local_abs)
+          if not dry_run:
+            _makedirs_local(_parent(local_abs))
+            session.get(remote_abs, local_abs)
           pulled += 1
         else:
           _p(vs, f"  [C] {_b('push')} {rel}")
-          _makedirs_remote(session, _parent(remote_abs))
-          session.put(local_abs, remote_abs)
+          if not dry_run:
+            _makedirs_remote(session, _parent(remote_abs))
+            session.put(local_abs, remote_abs)
           pushed += 1
       elif l:
         _p(vs, f"  {_b('push')} {rel}")
-        _makedirs_remote(session, _parent(remote_abs))
-        session.put(local_abs, remote_abs)
+        if not dry_run:
+          _makedirs_remote(session, _parent(remote_abs))
+          session.put(local_abs, remote_abs)
         pushed += 1
       else:
         _p(vs, f"  {_b('pull')} {rel}")
-        _makedirs_local(_parent(local_abs))
-        session.get(remote_abs, local_abs)
+        if not dry_run:
+          _makedirs_local(_parent(local_abs))
+          session.get(remote_abs, local_abs)
         pulled += 1
     except Exception as e:
       _p(vs, f"  {_b('ERR')} {rel}: {e}")
@@ -271,7 +288,7 @@ def _cmd_remote(vs, cfg, args):
     _p(vs, "Usage: sync remote [add|remove|list]")
 
 
-def _cmd_exec(vs, cfg, name, pattern=None):
+def _cmd_exec(vs, cfg, name, pattern=None, dry_run=False):
   remotes = cfg.get("remotes", {})
   if name not in remotes:
     _p(vs, f"Remote '{name}' not found.")
@@ -296,9 +313,10 @@ def _cmd_exec(vs, cfg, name, pattern=None):
   try:
     with ssh.session(host, None, password, identity) as session:
       _p(vs, "Connected.")
-      push, pull, skip, err = _sync_pair(session, local_root, remote_root, vs, pattern)
+      push, pull, skip, err = _sync_pair(session, local_root, remote_root, vs, pattern, dry_run)
       _p(vs, "")
-      _p(vs, f"Done.  {_b('push')}:{_b(push)}  {_b('pull')}:{_b(pull)}  skip:{skip}  err:{err}")
+      suffix = " [DRY RUN]" if dry_run else ""
+      _p(vs, f"Done.  {_b('push')}:{_b(push)}  {_b('pull')}:{_b(pull)}  skip:{skip}  err:{err}{suffix}")
   except OSError as e:
     _p(vs, f"{_b('SSH error')}: {e}")
 
@@ -309,7 +327,7 @@ def main(vs, args):
   if len(args) < 2:
     _p(vs, "Usage:")
     _p(vs, "  sync remote [add|remove|list]")
-    _p(vs, "  sync exec <name> [-f pattern]")
+    _p(vs, "  sync exec <name> [-n] [-f pattern]")
     return
 
   cmd = args[1]
@@ -317,18 +335,22 @@ def main(vs, args):
     _cmd_remote(vs, cfg, args[2:])
   elif cmd == "exec":
     if len(args) < 3:
-      _p(vs, "Usage: sync exec <name> [-f pattern]")
+      _p(vs, "Usage: sync exec <name> [-n] [-f pattern]")
       return
     pattern = None
+    dry_run = False
     rest = args[3:]
     i = 0
     while i < len(rest):
       if rest[i] in ('--filter', '-f') and i + 1 < len(rest):
         pattern = rest[i + 1]
         i += 2
+      elif rest[i] in ('--dry-run', '-n'):
+        dry_run = True
+        i += 1
       else:
         i += 1
-    _cmd_exec(vs, cfg, args[2], pattern)
+    _cmd_exec(vs, cfg, args[2], pattern, dry_run)
   else:
     _p(vs, f"Unknown: {cmd}")
     _p(vs, "Usage: sync remote|exec")

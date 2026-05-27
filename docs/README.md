@@ -195,11 +195,19 @@ curl [options] url | HTTP client for simple web requests. Supports `http://` and
 
 See [[ssh_scp_readme]]
 
+
 ## Basic applications
+
+### Setup
+
+Setup (`setup`) configures boot sequence.
+
+If you want to change boot sequence, execute `setup` command. It will ask initial app on boot, BLE keyboard, and network connection on boot. It's great for pure writing experience.
+
 
 ### Home app
 
-Home app is an app to launch apps and change settings.
+Home app (`home`) is an app to launch apps and change settings.
 
 - Arrow keys, Enter and BS : Navigate menu
 - R bottom button in launch app list : Open application list menu. You can add, move and delete app. The data is saved in /config/apps.json. You can edit the file manually.

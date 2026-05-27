@@ -60,17 +60,58 @@ def _parse_header_line(line):
     raise ValueError("Empty header name")
   return name, value
 
-def _read_all(sock, chunk_size=1024):
-  out = b""
+def _read_chunk(sock, n):
+  out = bytearray(n)
+  view = memoryview(out)
+  read = 0
+  while read < n:
+    try:
+      r = sock.readinto(view[read:])
+    except AttributeError:
+      r = None
+    if r is None:
+      try:
+        chunk = sock.read(n - read)
+      except AttributeError:
+        chunk = sock.recv(n - read)
+      if not chunk:
+        break
+      out[read:read + len(chunk)] = chunk
+      read += len(chunk)
+    else:
+      if r == 0:
+        break
+      read += r
+  return bytes(out[:read])
+
+def _read_until_headers(sock):
+  buf = bytearray()
   while True:
     try:
-      b = sock.read(chunk_size)
+      chunk = sock.read(256)
     except AttributeError:
-      b = sock.recv(chunk_size)
+      chunk = sock.recv(256)
+    if not chunk:
+      break
+    buf += chunk
+    hpos, hlen = _find_header_end(bytes(buf))
+    if hpos >= 0:
+      return bytes(buf[:hpos]), bytes(buf[hpos + hlen:])
+  return bytes(buf), b""
+
+def _read_all(sock, chunk_size=1024, max_bytes=200000):
+  parts = []
+  total = 0
+  while total < max_bytes:
+    try:
+      b = sock.read(min(chunk_size, max_bytes - total))
+    except AttributeError:
+      b = sock.recv(min(chunk_size, max_bytes - total))
     if not b:
       break
-    out += b
-  return out
+    parts.append(bytes(b))
+    total += len(b)
+  return b"".join(parts)
 
 def _find_header_end(data):
   p = data.find(b"\r\n\r\n")
@@ -206,30 +247,40 @@ def request(url, method="GET", data=None, header_lines=None,
     if len(data_b) > 0:
       s.write(data_b)
 
-    raw = _read_all(s)
+    header_b, leftover = _read_until_headers(s)
+
+    try:
+      header_text = header_b.decode("utf-8")
+    except Exception:
+      header_text = header_b.decode()
+
+    status, resp_headers = _headers_to_dict(header_text)
+
+    te = resp_headers.get("transfer-encoding", "")
+    cl = resp_headers.get("content-length", None)
+
+    if te.lower().find("chunked") >= 0:
+      raw_body = leftover + _read_all(s)
+      body = _decode_chunked(raw_body)
+    elif cl is not None:
+      remaining = int(cl) - len(leftover)
+      body = leftover
+      while remaining > 0:
+        chunk = _read_chunk(s, min(4096, remaining))
+        if not chunk:
+          break
+        body += chunk
+        remaining -= len(chunk)
+        if len(body) >= 200000:
+          break
+    else:
+      body = leftover + _read_all(s)
+
   finally:
     try:
       s.close()
     except Exception:
       pass
-
-  hpos, hlen = _find_header_end(raw)
-  if hpos < 0:
-    return "", {}, raw
-
-  header_b = raw[:hpos]
-  body = raw[hpos + hlen:]
-
-  try:
-    header_text = header_b.decode("utf-8")
-  except Exception:
-    header_text = header_b.decode()
-
-  status, resp_headers = _headers_to_dict(header_text)
-
-  te = resp_headers.get("transfer-encoding", "")
-  if te.lower().find("chunked") >= 0:
-    body = _decode_chunked(body)
 
   return status, resp_headers, body
 
@@ -252,19 +303,24 @@ def build_parser():
                       help="Include response status and headers in output")
   parser.add_argument("-s", "--silent", action="store_true",
                       help="Silent mode, suppress progress/status messages")
+  parser.add_argument("-t", "--truncate", type=int, default=None, metavar="N",
+                      help="Truncate output to N bytes (default: no limit)")
   parser.add_argument("-V", "--version", action="store_true",
                       help="Show version")
   return parser
 
-def _write_body_to_vs(vs, body):
+def _write_body_to_vs(vs, body, truncate=None):
   try:
     text = body.decode("utf-8")
+  except Exception:
+    text = repr(body)
+  if truncate is not None and len(text) > truncate:
+    vs.write(text[:truncate])
+    print_vs(vs, "\n[... truncated, total body %d bytes]" % len(text))
+  else:
     vs.write(text)
     if not text.endswith("\n"):
       vs.write("\n")
-  except Exception:
-    # Binary fallback: print compact hex-ish repr instead of crashing terminal.
-    print_vs(vs, body)
 
 def main(vs, args_in):
   parser = build_parser()
@@ -289,6 +345,7 @@ def main(vs, args_in):
   data = _arg_get(args, ("data", "d"), None)
   include_headers = _arg_get(args, ("include", "i"), False)
   silent = _arg_get(args, ("silent", "s"), False)
+  truncate = _arg_get(args, ("truncate", "t"), None)
 
   if version:
     print_vs(vs, _VERSION)
@@ -314,6 +371,12 @@ def main(vs, args_in):
     print_vs(vs, "curl: error: " + str(e))
     return 1
 
+  #print_vs(vs, "[DBG] status: " + status)
+  #print_vs(vs, "[DBG] headers:")
+  for k in headers:
+    print_vs(vs, "  " + k + ": " + headers[k])
+  #print_vs(vs, "[DBG] body len: " + str(len(body)))
+
   if output:
     try:
       with open(output, "wb") as f:
@@ -329,7 +392,7 @@ def main(vs, args_in):
       for k in headers:
         print_vs(vs, k + ": " + headers[k])
       print_vs(vs, "")
-    _write_body_to_vs(vs, body)
+    _write_body_to_vs(vs, body, truncate)
 
   if not silent and status:
     print_vs(vs, "")

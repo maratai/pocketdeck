@@ -64,6 +64,9 @@ You will see analog clock and a calendar.
 
 If you press 'c', then current date will be copied to system clipboard. You can paste it to editor by S-C-v(Shift-Ctrl-V).
 
+## Boot sequence setup
+
+If you want to change boot sequence, execute `setup` command. It will ask initial app on boot, BLE keyboard, and network connection on boot. It's great for pure writing experience.
 
 ## File sync with google drive
 

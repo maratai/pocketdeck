@@ -276,8 +276,8 @@ class editor:
     self.file = editor_file(self.v, filename, self.text_height, self.text_width - 1, self.tab_size)
     self.file_row, self.file_col = self.file.open(linenum, colnum)
     self.v.background_update=self.file.background_update
-    #self.render_main_text(True)
-    #self.jump_to_position(self.file_row, self.file_col, 1, False)
+    self.render_main_text(True)
+    self.jump_to_position(self.file_row, self.file_col, 1, False)
 
   def setup_screen(self):
     self.v.set_raw_mode(True)
@@ -619,6 +619,13 @@ class editor:
         break
 
   def jump_to_position(self, r, c, direction = 1, stay_if_possible = True):
+    if len(self.file.rows) < 2:
+      return
+    if r >= len(self.file.rows):
+      r = len(self.file.rows)-1
+      c = 0
+    if r == len(self.file.rows) - 1:
+      c = 0
     range_ret = self.file.in_screen(r,c)
     if stay_if_possible and range_ret == 0:
       # in_screen

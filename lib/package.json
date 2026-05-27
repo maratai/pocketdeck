@@ -17,6 +17,10 @@
             "argparse.py"
         ],
         [
+            "auto_connect.py",
+            "auto_connect.py"
+        ],
+        [
             "benchmark.py",
             "benchmark.py"
         ],
@@ -41,10 +45,6 @@
             "codec_config.py"
         ],
         [
-            "copy.mpy",
-            "copy.mpy"
-        ],
-        [
             "cp.py",
             "cp.py"
         ],
@@ -63,6 +63,10 @@
         [
             "data/agent_mode.md",
             "data/agent_mode.md"
+        ],
+        [
+            "data/apps_db.json",
+            "data/apps_db.json"
         ],
         [
             "data/block.xbmr",
@@ -147,6 +151,10 @@
         [
             "data/lofi_girl-studying.xbm",
             "data/lofi_girl-studying.xbm"
+        ],
+        [
+            "data/main.py",
+            "data/main.py"
         ],
         [
             "data/medium.xbmr",
@@ -365,10 +373,6 @@
             "grep.py"
         ],
         [
-            "home.mpy",
-            "home.mpy"
-        ],
-        [
             "home.py",
             "home.py"
         ],
@@ -387,10 +391,6 @@
         [
             "jp_input.py",
             "jp_input.py"
-        ],
-        [
-            "ls.mpy",
-            "ls.mpy"
         ],
         [
             "ls.py",
@@ -441,8 +441,8 @@
             "pathlib.mpy"
         ],
         [
-            "pem.mpy",
-            "pem.mpy"
+            "pdeck_complete.py",
+            "pdeck_complete.py"
         ],
         [
             "pem.py",
@@ -519,6 +519,10 @@
         [
             "setuni.py",
             "setuni.py"
+        ],
+        [
+            "setup.py",
+            "setup.py"
         ],
         [
             "sound.py",
@@ -620,7 +624,7 @@
         },
         {
             "path": "analog_clock.py",
-            "md5": "35b2a82030c76b37929d51b225a09808"
+            "md5": "64048f6cdd6e5b2166fc3f3adae24606"
         },
         {
             "path": "ble_manager.py",
@@ -664,7 +668,7 @@
         },
         {
             "path": "curl.py",
-            "md5": "f9a2ead82c8254195b95ad33f0a6cb6e"
+            "md5": "2594ffec911c19a9c9dbd90c47d5d419"
         },
         {
             "path": "ntptime.mpy",
@@ -672,11 +676,7 @@
         },
         {
             "path": "pem_extra.py",
-            "md5": "fa717b76ca1c84b541e6fe42bcac020c"
-        },
-        {
-            "path": "copy.mpy",
-            "md5": "88eb3d4ca6eaf2c717ab1bacec543855"
+            "md5": "531012dbde96354e6ad96c80cfa631e7"
         },
         {
             "path": "mock_stream.py",
@@ -707,8 +707,16 @@
             "md5": "f01067a4d408cf410b55d6d898f4bfec"
         },
         {
+            "path": "pdeck_complete.py",
+            "md5": "0e0fbfe8f82ccd64948b5a33b4fb9bca"
+        },
+        {
             "path": "home.py",
             "md5": "62046125c3835c3fce38a2a3293c3fc3"
+        },
+        {
+            "path": "auto_connect.py",
+            "md5": "481765f13ca6150cc5754ae9fcd0c738"
         },
         {
             "path": "anm.py",
@@ -744,11 +752,11 @@
         },
         {
             "path": "esclib.py",
-            "md5": "4633bb65f4425017712dc0a78de99dbb"
+            "md5": "932b3a1e5255e4ad809a409c7b7f63a2"
         },
         {
             "path": "gpt_rt.py",
-            "md5": "46f7e96d26850827afec9f32d002f3d4"
+            "md5": "f28e0b6c3df440cbffe04f0c625b3f0a"
         },
         {
             "path": "pngreader.py",
@@ -760,7 +768,7 @@
         },
         {
             "path": "gpt.py",
-            "md5": "1726f0a213e7d2852fb252d39e908824"
+            "md5": "dce6ca8eb92b3fd3952418050e6382aa"
         },
         {
             "path": "argparse.py",
@@ -776,7 +784,7 @@
         },
         {
             "path": "ls.py",
-            "md5": "3b051b76c202e4fb41894641a0da532d"
+            "md5": "4f077bd90d2ffcf8df4d9a9ff6c3ee73"
         },
         {
             "path": "pie.py",
@@ -795,10 +803,6 @@
             "md5": "89309ceca9ca6835893824ef5971ed9e"
         },
         {
-            "path": "home.mpy",
-            "md5": "1d24484a05a8eb3ce6c9a9c723af8024"
-        },
-        {
             "path": "re_findall.py",
             "md5": "fe418d8d9411e1fea145234dc6fdcb98"
         },
@@ -811,12 +815,8 @@
             "md5": "437afbdcc37902ef91b0cbf13170cb61"
         },
         {
-            "path": "ls.mpy",
-            "md5": "f62bf8b64d8aa50f35c1c6264d4593f1"
-        },
-        {
             "path": "music.py",
-            "md5": "2c43ddd2617f166e414313eb6c2a666c"
+            "md5": "8c63dfe15e45c6e1b4621bee6c842d68"
         },
         {
             "path": "pem_keymap_default.py",
@@ -839,6 +839,10 @@
             "md5": "6a03e82e4d7532b13a57fef75bfc18d8"
         },
         {
+            "path": "setup.py",
+            "md5": "bd18994b500681efe200d7c28538318b"
+        },
+        {
             "path": "wav_loader.py",
             "md5": "2ecea33b5fb892950ca0680f59530e7c"
         },
@@ -847,20 +851,16 @@
             "md5": "cbb20dd16541d3710f5e98cf8ac33fcc"
         },
         {
-            "path": "pem.mpy",
-            "md5": "42776293559fe59a2b7959cb903cb58b"
-        },
-        {
             "path": "update_updater.py",
             "md5": "adfe287c00cd166f66d75484b4e43fa3"
         },
         {
             "path": "pem.py",
-            "md5": "3adf2d0541f289a85d790a68a7855dac"
+            "md5": "deee250ba04280cebbde3f4d9559aaa0"
         },
         {
             "path": "recorder.py",
-            "md5": "bce219ad447804632d19e0d6c3890b2a"
+            "md5": "c25dff6fac20b2edb80499ac25cf1e10"
         },
         {
             "path": "cat.py",
@@ -920,7 +920,7 @@
         },
         {
             "path": "sync.py",
-            "md5": "fb1f1b2238eb3fe498ff36f71d5aa33f"
+            "md5": "6340ea6a70b69b951236a1dadd6bb5f2"
         },
         {
             "path": "xbmreader.py",
@@ -1003,6 +1003,10 @@
             "md5": "bee7fdfed95ad156232a0869dea0518b"
         },
         {
+            "path": "data/apps_db.json",
+            "md5": "c25b34d5c7e98da4cacff31c6dcad476"
+        },
+        {
             "path": "data/cat3.xbmr",
             "md5": "82a77fa267cd7d37ecfd1df947b4cd50"
         },
@@ -1031,12 +1035,16 @@
             "md5": "8d82bd62895d7a7a5838e8dfcf238410"
         },
         {
+            "path": "data/main.py",
+            "md5": "ae020c116d4a03a3efd46b0cbb030ddc"
+        },
+        {
             "path": "data/checked.xbmr",
             "md5": "7ad44f04109967b823919f7048976d00"
         },
         {
             "path": "data/agent_mode.md",
-            "md5": "e63fe1bf1fd6c0461ac0882dee9c23c4"
+            "md5": "8d4e23e5b6e597636b9cb9f58519f3e0"
         },
         {
             "path": "data/cat4.xbmr",

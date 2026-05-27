@@ -6,6 +6,7 @@ import gpt
 import gc
 import esclib
 import setuni
+import auto_connect
 
 _el = esclib.esclib()
 
@@ -316,7 +317,7 @@ class RealtimeAgent:
 
     # Lock-free single-producer/single-consumer ring buffer for audio playback.
     # Main thread writes; callback reads. No lock needed.
-    self._ring_size = 262144*4  # 256 KB ≈ 5.3 s at 24 kHz PCM16 mono
+    self._ring_size = 262144*6  # 256 KB ≈ 5.3 s at 24 kHz PCM16 mono
     self._ring = bytearray(self._ring_size)
     self._ring_mv = memoryview(self._ring)
     self._ring_wpos = 0  # written only by main thread
@@ -340,6 +341,7 @@ class RealtimeAgent:
     self.user_text_partial = ""
     self.user_text_printed = False
     self.agent_executed_text = ""
+    self.fn_calls_executed = 0
 
   @micropython.native
   def mic_callback(self, index):
@@ -690,7 +692,6 @@ class RealtimeAgent:
       }
     }
     self.ws.send(ujson.dumps(evt))
-    self.ws.send(ujson.dumps({"type": "response.create"}))
 
   def process_event(self, msg):
     mtype = msg.get("type", "")
@@ -743,6 +744,7 @@ class RealtimeAgent:
         result = self.execute_function_call(call_id, fn_name, arguments)
         print("%s[Result]%s %s" % (_el.bold(), _el.bold_off(), result[:200]), file=self.vs)
         self.send_function_result(call_id, result)
+        self.fn_calls_executed += 1
         self.pending_fn_calls.pop(call_id, None)
 
     elif mtype == "input_audio_buffer.speech_started":
@@ -755,6 +757,9 @@ class RealtimeAgent:
       pass  # print("\n[Session updated]", file=self.vs)
 
     elif mtype == "response.done":
+      if self.fn_calls_executed > 0:
+        self.ws.send(ujson.dumps({"type": "response.create"}))
+        self.fn_calls_executed = 0
       self.reset_turn_text()
 
     elif mtype == "error":
@@ -850,6 +855,10 @@ def main(vs, args_in):
   parser.add_argument('-a', '--agent', action='store_true', help='Enable agent mode (function calling)')
   parser.add_argument('-l', '--language', action='store', default=None, help='Preferred speech-to-text language, e.g. ja for Japanese')
   args = parser.parse_args(args_in[1:])
+
+  if not auto_connect.check(vs, silent = True):
+    print("Network is not available", file=vs)
+    return
 
   model = args.model
   file_list = args.file or []

@@ -2,6 +2,19 @@
 
 ## Firmware
 
+- GC optimization
+- BT keyboard bugfix
+- Setup script to configure boot sequence
+
+## Application
+
+- `setup` command to configure boot sequence
+
+
+## Release Note May 23, 2026
+
+## Firmware
+
 - command shell : history crash fix
 - modiication for TAB completion
 
