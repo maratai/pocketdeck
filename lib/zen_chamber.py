@@ -316,10 +316,10 @@ class ZenChamber:
       poly_buf[3] = int(p.y + pts_rot[1] * s)
       poly_buf[4] = int(p.y + pts_rot[3] * s)
       poly_buf[5] = int(p.y + pts_rot[5] * s)
-      
+
       self.v.set_dither(16)
       self.v.draw_polygon(poly_buf)
-      
+
       # Hit Flash (Outer dithered triangle)
       if time.ticks_diff(time.ticks_ms(), p.last_hit_time) < 100:
         self.v.set_dither(8)

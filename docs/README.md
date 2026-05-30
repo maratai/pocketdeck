@@ -69,6 +69,14 @@ Following example is disassemble process to install LiPo battery.
 
 8. Put on screws.
 
+## Expansion port
+
+Pocket deck has 8-pin expansion port. Pin layout is the following:
+
+`GND EVENT IO13 IO6 NC NC 3.3V 5V`
+
+IO13 and IO6 is free to use from Micrppython. Event is high when touch buttons are pressed.
+
 
 ## Software overview
 
@@ -190,7 +198,7 @@ setuni | Change terminal font to CJK Unicode font,.
 setjpf | Change terminal font to Japanese. It's lighter than setuni.
 grep pattern [path] | Search text in files. `-r` recursive, `-e` regex, `-n` line numbers, `-i` ignore case, `-l` filenames only, `--include .py,.md` filter by extension, `--max N` skip files larger than N bytes.
 curl [options] url | HTTP client for simple web requests. Supports `http://` and `https://`, `-o FILE` to save body to file, `-X METHOD` to choose request method, `-d DATA` to send request body, `-i` to include response headers, `-s` for silent mode, and `-V` to show version. `-H` for header.
-qrcode [text...] | Generate and display a QR code centered on the screen. Supports `-c` to read from clipboard, `-e` to set ECC level, and `-s` to set size.
+qr [text...] | Generate and display a QR code centered on the screen. Supports `-c` to read from the clipboard.
 
 ## SSH/SCP setup guide
 
@@ -442,20 +450,15 @@ stt [options] [wav_file] [-o output_file]
 
 TTS (Text-to-Speech) app. Requires OpenAI API key.
 
-### qrcode
+### qr
 
-`qrcode` generates a QR Code from text or URL inputs and displays it centered on the display.
+`qr` generates a QR Code from text or URL inputs and displays it centered on the screen.
 
 ```
-qrcode [text...] [options]
+qr [text...] [-c]
 ```
 
-Options:
-- `-c` or `--clipboard`: Read content from clipboard.
-- `-e` or `--ecc` (L/M/Q/H): Set error correction level (default: M).
-- `-s` or `--size` (pixels): Set module size in pixels.
-
-Refer to [[qr_readme.md]] for more details and API usage.
+- `-c` : Generate QR code from clipboard.
 
 ### docs
 

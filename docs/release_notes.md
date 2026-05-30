@@ -1,3 +1,9 @@
+## Release Note May 30, 2026
+
+## Application
+
+- QR code generater app `qr` added.
+
 ## Release Note May 23, 2026
 
 ## Firmware
