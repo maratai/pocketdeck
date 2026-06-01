@@ -1,16 +1,28 @@
 # Welcome to Pocket Deck
 
-This is the **PEM editor** running in your browser.
+This is the **PEM** editor. Tailered for Pocket Deck.
+Lightweight, syntax highlighting, multi file editing, UTF-8 support.
+
+## Basic operations
 
 - Arrow keys move the cursor
-- Ctrl-K kills to end of line, Ctrl-Y yanks it back
-- Ctrl-X Ctrl-F : Open file
-- Ctrl-X Ctrl-S : Save file
-- Ctrl-X B : Switch between files 
-- Ctrl-X Ctrl-C : Quit 
+- Ctrl-k kills to end of line, Ctrl-Y yanks it back
+- Ctrl-x Ctrl-f : Open file
+- Ctrl-x Ctrl-s : Save file
+- Ctrl-x b : Switch between files 
+- Ctrl-g : Cancel operation
+- Ctrl-x Ctrl-c : Quit 
 
-[[journal.md]] PEM editor supports Obsidian style link. Alt+. to follow link.
 
+## Links to documents
+
+PEM editor supports Obsidian style link. `Alt+.` on the link to follow link.
+
+[[journal]] Journal example.
+
+[[pd/pem_readme]] PEM full reference manual.
+
+[[japanese]] Japanese text example. "Alt+`" to toggle Japanse input.
 
 See docs/pem_readme.md for full manual. Some commands are not supported on emulator.
 

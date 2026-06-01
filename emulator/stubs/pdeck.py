@@ -8,6 +8,21 @@ def vscreen(screen_num=None):
 def get_screen_size():
   return (400, 240)
 
+def get_utf8_width(ch):
+  # Display width in terminal cells: East-Asian wide/fullwidth chars take 2.
+  # Used by jp_input to position the kana/kanji pre-edit buffer.
+  import unicodedata
+  if isinstance(ch, int):
+    ch = chr(ch)
+  elif isinstance(ch, (bytes, bytearray)):
+    try:
+      ch = ch.decode('utf-8')
+    except Exception:
+      return 1
+  if not ch:
+    return 1
+  return 2 if unicodedata.east_asian_width(ch[0]) in ('W', 'F') else 1
+
 def get_screen_num():
   return 2
 
@@ -30,7 +45,7 @@ def screen_invert(value=None):
   return _inverted
 
 def wifi_connected():
-  return False
+  return True   # the browser host is online; lets auto_connect short-circuit
 
 def led(led_index, brightness=0):
   pass

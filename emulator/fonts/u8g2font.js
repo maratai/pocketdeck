@@ -21,11 +21,13 @@
       this.ascent = s8(f[13]);
       this.startA = (f[17] << 8) | f[18];
       this.starta = (f[19] << 8) | f[20];
+      this.startUni = (f[21] << 8) | f[22];   // offset to the unicode lookup table
       this._cache = new Map();
     }
 
     _findGlyph(enc) {
       const f = this.f;
+      if (enc > 255) return this._findGlyphUnicode(enc);
       let p = 23;
       if (enc >= 97) p += this.starta;       // 'a'
       else if (enc >= 65) p += this.startA;  // 'A'
@@ -34,6 +36,33 @@
         if (f[p] === enc) return p + 2;
         p += f[p + 1];
       }
+    }
+
+    // u8g2 unicode section (start_pos_unicode): the first word is an offset that
+    // jumps past the accelerator jump-table to a flat, sorted glyph list whose
+    // entries are [enc_hi][enc_lo][size][bitmap…], terminated by enc==0. We index
+    // it once (encoding → data offset). Ported from u8g2_font_get_glyph_data's
+    // linear-scan fallback; verified against the device's unifont output.
+    _buildUnicodeIndex() {
+      const f = this.f, n = f.length;
+      const word = q => (f[q] << 8) | f[q + 1];
+      const idx = new Map();
+      let p = 23 + this.startUni;
+      p += word(p);                          // skip jump-table → start of glyph list
+      while (p + 3 <= n) {
+        const e = word(p);
+        if (e === 0) break;                  // end of list
+        idx.set(e, p + 3);                   // data offset (after 3-byte header)
+        const sz = f[p + 2];
+        if (sz === 0) break;
+        p += sz;
+      }
+      this._uniIdx = idx;
+    }
+    _findGlyphUnicode(enc) {
+      if (!this._uniIdx) this._buildUnicodeIndex();
+      const r = this._uniIdx.get(enc);
+      return r === undefined ? -1 : r;
     }
 
     // Returns { w, h, x, y, adv, bmp:Uint8Array(w*h) } or null

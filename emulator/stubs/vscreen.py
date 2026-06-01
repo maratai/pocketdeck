@@ -250,7 +250,12 @@ class Vscreen:
     return int(_kstate[int(key_code) & 0xFF])
 
   def get_tp_keys(self):
-    return bytes(7)
+    # tp[0] = slider analog position (0..40, 0xff = not touched), published by the
+    # on-screen slider via kMeta[3]. Remaining bytes (touch/buttons) are unused here.
+    tp = bytearray(7)
+    pos = int(_Atomics.load(_meta, 3)) & 0xFF
+    tp[0] = pos
+    return bytes(tp)
 
   def get_terminal_size(self):
     # Matches displayapi.c font_size 0: 8×16 cell → 50×15 on the 400×240 screen.

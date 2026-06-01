@@ -1150,6 +1150,42 @@ class editor:
       if self.sl_info.line.get_len() !=0 and self.sl_info.cur != 0:
         self.sl_info.line.delete_str(self.sl_info.cur -1,1)
         self.sl_info.cur -= 1
+    # Left (C-b / arrow): move the caret one char toward the start
+    elif keys in km.map['left']:
+      if self.sl_info.cur > 0:
+        self.sl_info.cur -= 1
+    # Right (C-f / arrow): move the caret one char toward the end
+    elif keys in km.map['right']:
+      if self.sl_info.cur < self.sl_info.line.get_len():
+        self.sl_info.cur += 1
+    # Home (C-a): jump the caret to the start of the line
+    elif keys in km.map['top_line']:
+      self.sl_info.cur = 0
+    # End (C-e): jump the caret to the end of the line
+    elif keys in km.map['bottom_line']:
+      self.sl_info.cur = self.sl_info.line.get_len()
+    # Forward delete (C-d / Del): remove the char under the caret
+    elif keys in km.map['delete']:
+      if self.sl_info.cur < self.sl_info.line.get_len():
+        self.sl_info.line.delete_str(self.sl_info.cur, 1)
+    # Kill to end of line (C-k): cut from the caret onward into the yank buffer
+    elif keys in km.map['kill']:
+      if self.sl_info.cur < self.sl_info.line.get_len():
+        killed = self.sl_info.line.substr(self.sl_info.cur, -1).decode()
+        self.yankbuf.reset_buf()
+        self.yankbuf.add_str(killed)
+        self.sl_info.line.erase_to_the_end(self.sl_info.cur)
+    # Yank (C-y): insert the current yank-buffer text at the caret
+    elif keys in km.map['yank']:
+      if self.yankbuf.curbuf:
+        # The dialog is a single line, so stop at the first newline.
+        text = self.yankbuf.curbuf
+        pos = text.find("\n")
+        if pos != -1:
+          text = text[:pos]
+        if text:
+          self.sl_info.line.insert_str(self.sl_info.cur, text)
+          self.sl_info.cur += len(text)
     # Enter
     elif keys in (b'\x0d', b'\x0a'): 
       #print("Calling callback")
@@ -1541,7 +1577,11 @@ class editor:
           self.file.undo.record(self, 'other')
           self.file.insert_str(self.file_row, self.file_col, result)
           self.file_col += len(result)
-          self.jump_to_position(self.file_row, self.file_col, -1)
+          # Don't use jump_to_position here: it snaps the column to 0 on the
+          # last row of the file, which left the caret at line start after
+          # committing IME text at the end of the document. Just follow the
+          # caret with the scroll, like the English insert path does.
+          self.update_scroll_for_curmove()
 
         if last_len > 0 and len(self.file.im_session.buffer) == 0:
           #print('clear')
@@ -1953,6 +1993,11 @@ class editor:
   def save_pos(self):
     return (self.scroll_row, self.scroll_col, self.file_row, self.file_col)
   def recall_pos(self, pos):
+    # A buffer that was never switched away from (e.g. the buffer revealed by
+    # closing another with C-x k) has saved_pos == None. Fall back to the top
+    # of the file instead of crashing while unpacking None.
+    if pos is None:
+      pos = (0, 0, 0, 0)
     self.scroll_row, self.scroll_col, self.file_row, self.file_col = pos
 
 def _edit_class(keys):

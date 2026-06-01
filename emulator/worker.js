@@ -7,33 +7,19 @@ let running = false;
 const STUB_FILES = [
   '_runner.py', 'vscreen.py', 'pdeck.py', 'esclib.py', 'anm.py',
   'dsplib.py', 'xbmreader.py', 'pdeck_utils.py', 'overlay.py', 'audio.py',
-  'ujson.py', 'network.py', 'termios.py', 'machine.py', 'micropython.py'
+  'ujson.py', 'network.py', 'termios.py', 'machine.py', 'micropython.py',
+  // Japanese input (PEM): socket bridges HTTP to sync-XHR for henkan; fontloader
+  // is a no-op since the browser renders CJK glyphs itself.
+  'socket.py', 'fontloader.py'
 ];
 
 // ── Bundled demo apps ────────────────────────────────────────────────────────
 const BUILTIN_APPS = {
 
-  'hello_world': {
-    label: 'Hello World',
-    desc: 'Basic CLI app — text output',
-    code: `\
-import pdeck
-import time
-
-def main(vs, args):
-  for i in range(5):
-    print('Hello Pocket Deck!', file=vs)
-    time.sleep(1)
-  print('Done. Press any key.', file=vs)
-  vs.read(1)
-`
-  },
-
-
   // ── Real Pocket Deck apps, imported from the served lib/ tree ──────────────
   'pem': {
     label: 'PEM Editor',
-    desc: 'The real emacs-style editor (from lib/)',
+    desc: 'PEM is emacs-style editor',
     // Open the demo welcome.md on launch (resolved against /sd/Documents cwd).
     code: `import pem
 def main(vs, args):
@@ -43,7 +29,7 @@ def main(vs, args):
 
   'home': {
     label: 'Home',
-    desc: 'The real home/launcher app (from lib/)',
+    desc: 'The home app. Function is limited, it won\'t launch apps. Just for demo.',
     code: `import home
 def main(vs, args):
   home.main(vs, args)
@@ -125,9 +111,17 @@ if '/home/pyodide' not in sys.path:
 
       await loadStubs();
 
+      // Drop any stdlib 'socket' Pyodide pre-imported so our /home/pyodide stub
+      // (loaded above) is the one jp_input picks up on first import.
+      await pyodide.runPythonAsync(`
+import sys
+for _m in ('socket', 'fontloader'):
+    sys.modules.pop(_m, None)
+`);
+
       // Seed the device-like filesystem so apps that read /config and /sd work.
       try {
-        for (const d of ['/config', '/config/ssh', '/sd', '/sd/Documents', '/sd/work', '/sd/py', '/sd/lib'])
+        for (const d of ['/config', '/config/ssh', '/sd', '/sd/Documents', '/sd/work', '/sd/py', '/sd/lib', '/sd/Documents/pd'])
           try { pyodide.FS.mkdirTree(d); } catch (_) {}
         const apps = [
           ["Pem",          { type:"program", command:[["pem"]],          description:"Pem text editor" }],
@@ -148,6 +142,9 @@ if '/home/pyodide' not in sys.path:
             if (body != null) pyodide.FS.writeFile('/sd/Documents/' + name, body);
           }
         }
+        // Loads PEM manual
+        const body = self.emulator_fetch_text('../docs/pem_readme.md');
+        pyodide.FS.writeFile('/sd/Documents/pd/pem_readme.md', body);
       } catch (e) { /* non-fatal */ }
 
       // Install an import hook: any module not satisfied by the built-in stubs
@@ -213,9 +210,9 @@ if not any(isinstance(f, _LibFinder) for f in sys.meta_path):
       return;
     }
     const appEntry = BUILTIN_APPS[msg.app];
-    const code = msg.code || (appEntry && appEntry.code) || '';
+    const code = (appEntry && appEntry.code) || '';
     if (!code) {
-      self.postMessage({ type: 'error', message: 'No code provided' });
+      self.postMessage({ type: 'error', message: 'Unknown app: ' + msg.app });
       return;
     }
     const args = JSON.stringify(msg.args || [msg.app || 'app']);

@@ -46,7 +46,9 @@ It can open multiple files.
 - `C-x` `C-v` : Revert file (Reload from file)
 - `C-x` `b` : Switch between files
 - `C-x` `k` : Close the file
+- `C-/` or `C-x u': undo
 - `C-g`: Cancel operation (**Important!**)
+
 
 **Move cursor**
 
@@ -63,13 +65,21 @@ You can move cursor just as normal editor.
 - `M->` : End of the file
 - `M-g` : Go to line number
 
-### Yanking
+### Yanking / Cut, Copy, Paste
 
 PEM has similar concept of Eamcs's Yanking (Kill ring). It can be used like instant copy & paste buffer. Main difference is you need to delete the characters to store it to Yank buffer. See Emacs' manual or tutorial for detail. It stores 20 buffer.
 
+#### Selection
+
+- `C-space` : Mark set
+- `C-w` : Cut and save it to yank buffer
+- `M-w` : Copy and save it to yank buffer
+- `C-y` : Yank (Paste the latest buffer)
+
+#### Yank
+
 - `C-k` : Delete chars to the end of the line, and store it to Yank buffer.
 - `Del` or `C-d`: Delete one char and store it to Yank buffer. (So del, del, del, del.. then `C-y` can restore the deletion)
-- `C-y` : Yank (Paste the latest buffer)
 - `C-c v` : (This is an example of custom command) Copy system clipboard to yank buffer.  It's useful when copy long data.
 - `M-y` : Open Yank list
 
@@ -78,6 +88,7 @@ In yank list,
 - `Up`/`Down` : Move the list
 - `Enter` : Select the list
 - `C-g` or `q` : Quit the selection mode
+
 
 ### Search
 

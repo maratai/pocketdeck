@@ -10,16 +10,19 @@
   <script src="./fonts/t0_15_me.js"></script>
   <script src="./fonts/t0_15b_me.js"></script>
   <script src="./fonts/u8g2font.js"></script>
+  <!-- GNU Unifont (≈1MB) — the device's CJK terminal font; loaded async so it
+       doesn't block first paint, only needed once Japanese text is shown. -->
+  <script src="./fonts/unifont_large.js" defer></script>
   <script>
     tailwind.config = {
       darkMode: "class",
       theme: { extend: {
         colors: {
-          "on-surface": "#383831", "primary": "#5f5e5e", "on-primary": "#faf7f6",
-          "primary-container": "#e5e2e1", "surface": "#fffcf7",
-          "surface-container": "#f6f4ec", "surface-container-high": "#f0eee5",
-          "surface-container-highest": "#eae8de", "surface-container-low": "#fcf9f3",
-          "on-surface-variant": "#65655c", "outline": "#818178",
+          "on-surface": "#e9e9ec", "primary": "#b9b9bd", "on-primary": "#1a1a1f",
+          "primary-container": "#34343c", "surface": "#2e2e37",
+          "surface-container": "#1e1e24", "surface-container-high": "#26262d",
+          "surface-container-highest": "#2e2e36", "surface-container-low": "#141418",
+          "on-surface-variant": "#a6a6ae", "outline": "#7c7c85",
           "outline-variant": "#babab0", "secondary": "#4f6966",
           "secondary-container": "#cbe8e3", "on-secondary-container": "#3c5753",
           "on-secondary": "#ffffff", "success": "#34C759", "error": "#FF3B30",
@@ -32,25 +35,52 @@
   </script>
   <style>
     .material-symbols-outlined { font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24; }
-    body { background:#f2f2f7; color:#383831; -webkit-tap-highlight-color:transparent; }
-    /* The screen is a real 400×240 monochrome framebuffer scaled up crisply. */
-    #screenCanvas { width:100%; height:auto; image-rendering:pixelated; display:block; background:#000; }
-    #screen-area { position:relative; }
+    /* Always reserve the scrollbar gutter so the page width — and therefore the
+       w-full device artwork's scale — never changes when a scrollbar appears or
+       disappears (e.g. as content height shifts between app launches). */
+    html { scrollbar-gutter: stable; }
+    body { background:#22222a; color:#e9e9ec; -webkit-tap-highlight-color:transparent; }
+    /* The screen is a real 400×240 monochrome framebuffer scaled up crisply,
+       fitted (aspect-preserved) into the device artwork's screen rectangle. */
+    /* Device sized so its screen rectangle (45.3% wide) is the native 400px,
+       i.e. 400 / 0.453 ≈ 884px. The framebuffer then renders 1:1 (an exact ÷SS
+       downscale of the supersampled backing store) — pixel-perfect, no blur. */
+    #device { max-width:884px; }
+    /* Fill the screen cutout exactly. The cutout's aspect (≈1.61) is slightly
+       taller than the 400×240 framebuffer (1.667) — the real LCD's pixels aren't
+       perfectly square either — so stretching to fill matches the device rather
+       than leaving letterbox margins inside the bezel. */
+    #screenCanvas { width:100%; height:100%; image-rendering:auto; display:block; background:#000; }
     .ios-list-item { padding:12px 16px; display:flex; align-items:center;
-      justify-content:space-between; border-bottom:.5px solid rgba(0,0,0,.1); }
+      justify-content:space-between; border-bottom:.5px solid rgba(255,255,255,.08); }
     .ios-list-item:last-child { border-bottom:none; }
-    .btn-key { background:#e0e0e0; border-radius:8px; font-size:11px; font-weight:600;
-      display:flex; align-items:center; justify-content:center;
-      cursor:pointer; user-select:none; -webkit-tap-highlight-color:transparent;
-      transition:background .1s, transform .08s; }
-    .btn-key:active, .btn-key.pressed { background:#3a3a3c; color:#fff; transform:scale(.90); }
     #loading-overlay { display:none; }
     #loading-overlay.show { display:flex; }
+
+    /* ── On-screen controls overlaid on the artwork ──────────────────────────
+       Transparent hit-areas positioned (in %) over the golden buttons / slider
+       in device_front.png. They light up with a gold glow while pressed and
+       feed the same key channel as the physical keyboard. */
+    .dev-btn { position:absolute; aspect-ratio:1; border-radius:9999px;
+      transform:translate(-50%,-50%); cursor:pointer; touch-action:none; z-index:5; }
+    .dev-btn::after { content:''; position:absolute; inset:6%; border-radius:9999px;
+      background:rgba(255,214,120,0); box-shadow:0 0 0 0 rgba(255,200,110,0);
+      transition:background .06s, box-shadow .06s; }
+    .dev-btn.pressed::after { background:rgba(255,224,140,.5);
+      box-shadow:0 0 16px 5px rgba(255,200,110,.55); }
+    .dev-slider { position:absolute; cursor:ns-resize; touch-action:none;
+      border-radius:9999px; z-index:5; }
+    .dev-thumb { position:absolute; left:50%; top:0; width:75%; height:7%;
+      transform:translate(-50%,-50%); border-radius:9999px;
+      background:rgba(255,224,140,0); box-shadow:0 0 0 0 rgba(255,200,110,0);
+      transition:background .06s, box-shadow .06s; }
+    .dev-slider.active .dev-thumb { background:rgba(255,224,140,.85);
+      box-shadow:0 0 14px 4px rgba(255,200,110,.6); }
   </style>
 </head>
 <body class="font-body min-h-screen">
 
-<main class="pb-32 max-w-[600px] mx-auto">
+<main class="pb-32 max-w-[940px] mx-auto">
 
   <div class="px-4 pt-6 pb-2">
     <h1 class="font-headline text-[34px] font-extrabold tracking-tight text-on-surface">
@@ -61,16 +91,37 @@
     </p>
   </div>
 
-  <!-- Screen: one 400×240 monochrome framebuffer for both CLI and GUI -->
+  <!-- Screen: the 400×240 framebuffer is overlaid on the device front-panel
+       artwork, fitted into its screen rectangle (measured from device_front.png). -->
   <section class="px-4 mt-4">
-    <div class="bg-on-surface p-2 rounded-ios-lg shadow-sm">
-      <div id="screen-area" class="aspect-[5/3] bg-black rounded-ios relative overflow-hidden">
+    <div id="device" class="relative mx-auto select-none">
+      <img src="./device_front.png" alt="Pocket Deck" draggable="false"
+           class="w-full block pointer-events-none rounded-ios-lg shadow-2xl shadow-black/60 ring-1 ring-white/10"/>
+      <!-- Screen cutout, measured from device_front.png (the pure-black rectangle):
+           left 27.50%, top 9.95%, width 45.28%, height 44.62%. -->
+      <div id="screen-area"
+           class="absolute flex items-center justify-center overflow-hidden"
+           style="left:27.50%; top:9.95%; width:45.28%; height:44.62%;">
         <canvas id="screenCanvas" width="400" height="240"></canvas>
         <div id="loading-overlay"
              class="absolute inset-0 flex-col items-center justify-center bg-black/80 text-white gap-3">
           <div class="w-7 h-7 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
           <p id="loading-text" class="font-label text-[10px] uppercase tracking-widest opacity-60">Loading…</p>
         </div>
+      </div>
+
+      <!-- Clickable controls over the golden buttons / slider (positions measured
+           from device_front.png). D-pad → arrow keys, A → Enter, B → Backspace.
+           The slider scrolls (up/down) in raw mode and reports an analog position
+           to apps (e.g. home's menu) otherwise. See the control wiring below. -->
+      <div id="btn-up"    class="dev-btn" style="left:14.7%; top:50.9%; width:8%;"  aria-label="Up"></div>
+      <div id="btn-down"  class="dev-btn" style="left:14.7%; top:70.4%; width:8%;"  aria-label="Down"></div>
+      <div id="btn-left"  class="dev-btn" style="left:8.0%;  top:60.6%; width:8%;"  aria-label="Left"></div>
+      <div id="btn-right" class="dev-btn" style="left:21.5%; top:60.6%; width:8%;"  aria-label="Right"></div>
+      <div id="btn-a"     class="dev-btn" style="left:93.4%; top:64.4%; width:7%;"  aria-label="A (Enter)"></div>
+      <div id="btn-b"     class="dev-btn" style="left:83.7%; top:72.8%; width:7%;"  aria-label="B (Backspace)"></div>
+      <div id="slider-track" class="dev-slider" style="left:73.5%; top:23.5%; width:6%; height:31%;" aria-label="Slider">
+        <div id="slider-thumb" class="dev-thumb"></div>
       </div>
     </div>
     <div class="flex justify-between items-center px-1 mt-2">
@@ -82,52 +133,12 @@
     </div>
   </section>
 
-  <!-- Device controls -->
-  <section class="px-4 mt-5">
-    <p class="font-label text-[9px] uppercase tracking-widest text-outline mb-2">Controls</p>
-    <div class="flex items-start gap-4">
-      <div class="grid gap-1" style="grid-template-columns:repeat(3,36px);grid-template-rows:repeat(3,36px)">
-        <div></div><button class="btn-key" data-key="up">▲</button><div></div>
-        <button class="btn-key" data-key="left">◄</button><div></div>
-        <button class="btn-key" data-key="right">►</button>
-        <div></div><button class="btn-key" data-key="down">▼</button><div></div>
-      </div>
-      <div class="flex flex-wrap gap-2 pt-1">
-        <button class="btn-key w-11 h-11 rounded-full text-[13px]" data-char="&#13;">A</button>
-        <button class="btn-key w-11 h-11 rounded-full text-[13px]" data-char="&#8;">B</button>
-        <button class="btn-key w-12 h-9 text-[10px]" data-key="prev">◁ Prev</button>
-        <button class="btn-key w-12 h-9 text-[10px]" data-key="next">Next ▷</button>
-      </div>
-    </div>
-  </section>
-
   <!-- App list -->
   <section class="mt-6">
-    <h3 class="px-8 font-label text-[13px] uppercase tracking-wider text-outline mb-2">Demo Apps</h3>
+    <h3 class="px-8 font-label text-[13px] uppercase tracking-wider text-outline mb-2">Tap an app to run</h3>
     <div class="mx-4 bg-surface rounded-ios-lg border border-black/5 shadow-sm overflow-hidden">
       <div id="builtin-list"></div>
-      <div class="ios-list-item">
-        <span class="font-body text-[15px]">Load custom .py file</span>
-        <label class="cursor-pointer">
-          <input type="file" id="file-picker" accept=".py" class="hidden"/>
-          <span class="material-symbols-outlined text-outline text-[20px]">upload_file</span>
-        </label>
-      </div>
     </div>
-  </section>
-
-  <!-- Run / Stop -->
-  <section class="px-4 mt-4 flex gap-3">
-    <button id="run-btn" disabled
-      class="flex-1 bg-on-surface text-surface h-[50px] rounded-full flex items-center justify-center gap-2 disabled:opacity-30 active:opacity-70 transition-opacity">
-      <span class="font-headline font-bold text-[17px]">Run</span>
-      <span class="material-symbols-outlined text-[20px]">play_arrow</span>
-    </button>
-    <button id="stop-btn" disabled
-      class="flex-1 bg-surface-container-high text-on-surface h-[50px] rounded-full flex items-center justify-center gap-2 disabled:opacity-30 active:opacity-70 transition-opacity border border-black/5">
-      <span class="font-headline font-semibold text-[17px]">Stop</span>
-      <span class="material-symbols-outlined text-[20px]">stop</span>
-    </button>
   </section>
 
   <!-- Console -->
@@ -136,9 +147,11 @@
       <p class="font-label text-[9px] uppercase tracking-widest text-outline">Console</p>
       <button id="clear-console" class="material-symbols-outlined text-outline text-[16px]">delete_sweep</button>
     </div>
+    <!-- Fixed height (not max-height): the console must not grow as log lines
+         accumulate, or the page height would shift between app launches. -->
     <div id="console-out"
          class="bg-[#1a1a1a] rounded-ios p-3 text-[11px] text-green-400 overflow-y-auto"
-         style="max-height:110px;font-family:'Courier New',monospace"></div>
+         style="height:110px;font-family:'Courier New',monospace"></div>
   </section>
 
 </main>
@@ -164,8 +177,16 @@ if ('serviceWorker' in navigator) {
 //  pure black & white with a 4×4 ordered (Bayer) dither on present().
 // ════════════════════════════════════════════════════════════════════════════
 const W = 400, H = 240;
+// The framebuffer is computed at the native 400×240, then blitted nearest-neighbour
+// onto an SS× display canvas. The browser therefore only ever *downscales* that
+// crisp high-res image to the on-screen size — smooth and legible at any box size —
+// instead of doing a lossy non-integer downscale straight from 400×240 (which drops
+// whole pixel columns and mangles the text).
+const SS = 3;
 const screenCanvas = document.getElementById('screenCanvas');
+screenCanvas.width = W * SS; screenCanvas.height = H * SS;
 const sctx = screenCanvas.getContext('2d');
+sctx.imageSmoothingEnabled = false;
 
 // Two offscreen layers, matching the device's two render paths:
 //   gctx  — shapes/fills, drawn in grayscale → ordered-dithered to 1-bit
@@ -175,7 +196,10 @@ const gctx = gbuf.getContext('2d', { willReadFrequently: true });
 const tbuf = document.createElement('canvas'); tbuf.width = W; tbuf.height = H;
 const tctx = tbuf.getContext('2d', { willReadFrequently: true });
 
-const outImg = sctx.createImageData(W, H);
+// Scratch canvas receives the computed 400×240 frame; present() scales it up.
+const oscr = document.createElement('canvas'); oscr.width = W; oscr.height = H;
+const octx = oscr.getContext('2d');
+const outImg = octx.createImageData(W, H);
 const outBuf = outImg.data;
 
 // 4×4 Bayer threshold matrix (values 0..15)
@@ -215,7 +239,8 @@ function present() {
       outBuf[i] = c[0]; outBuf[i+1] = c[1]; outBuf[i+2] = c[2]; outBuf[i+3] = 255;
     }
   }
-  sctx.putImageData(outImg, 0, 0);
+  octx.putImageData(outImg, 0, 0);
+  sctx.drawImage(oscr, 0, 0, W, H, 0, 0, W * SS, H * SS);   // crisp nearest-neighbour ×SS
 }
 
 function clearGray() {
@@ -249,12 +274,18 @@ function renderFrame(cmds) {
       case 'dith':  curDither = c[1]; break;
       case 'font':  curFont = c[1]; break;
       case 'base':  curBaseline = c[1]; break;
-      case 'box':   ctx.fillStyle = fg(); ctx.fillRect(c[1], c[2], c[3], c[4]); break;
+      case 'box':   ctx.fillStyle = fg(); ctx.fillRect(c[1], c[2], c[3], c[4]);
+                    // A background (color 0) box erases everything underneath on
+                    // the real one-buffer display — including text drawn earlier
+                    // this frame (e.g. home's draw_help() erase bar over the menu).
+                    // Mirror that by clearing the same region of the text layer.
+                    if (curColor === 0) tctx.clearRect(c[1], c[2], c[3], c[4]); break;
       case 'frame': ctx.strokeStyle = fg(); ctx.lineWidth = 1;
                     ctx.strokeRect(c[1]+0.5, c[2]+0.5, c[3]-1, c[4]-1); break;
       case 'line':  ctx.strokeStyle = fg(); ctx.lineWidth = 1; ctx.beginPath();
                     ctx.moveTo(c[1], c[2]); ctx.lineTo(c[3], c[4]); ctx.stroke(); break;
-      case 'rbox':  rrect(c[1], c[2], c[3], c[4], c[5], true); break;
+      case 'rbox':  rrect(c[1], c[2], c[3], c[4], c[5], true);
+                    if (curColor === 0) tctx.clearRect(c[1], c[2], c[3], c[4]); break;
       case 'rframe':rrect(c[1], c[2], c[3], c[4], c[5], false); break;
       case 'circ':  ctx.strokeStyle = fg(); ctx.lineWidth = 1; ctx.beginPath();
                     ctx.arc(c[1], c[2], c[3], 0, 2*Math.PI); ctx.stroke(); break;
@@ -321,8 +352,37 @@ function drawXbm(x, y, w, h, bytes) {
 // Matches displayapi.c display_set_font_size(0): t0_15_me, 8×16 cell → 50×15.
 const sysFont  = new U8g2Font(window.U8G2_T0_15_ME);
 const boldFont = new U8g2Font(window.U8G2_T0_15B_ME);
+// GNU Unifont (CJK) is loaded async (large); build it lazily once available.
+const UNI_BASE = 14;        // baseline row for the 16px unifont glyph within the cell
+let _jpFont = null;
+function getJpFont() {
+  if (!_jpFont && window.U8G2_UNIFONT_LARGE) _jpFont = new U8g2Font(window.U8G2_UNIFONT_LARGE);
+  return _jpFont;
+}
 const CW = 8, CH = 16, COLS = Math.floor(W / CW), ROWS = Math.floor(H / CH); // 50 × 15
-const ATTR_BOLD = 1, ATTR_REVERSE = 2;   // per-cell attribute bits
+const ATTR_BOLD = 1, ATTR_REVERSE = 2, ATTR_UNDERLINE = 4;   // per-cell attribute bits
+
+// East-Asian wide characters occupy two terminal cells (the device's CJK font is
+// 16px = 2×8 cells). The bundled u8g2 terminal font is Latin-only, so these are
+// drawn with the host browser's CJK font instead (see render()). WIDE_CONT marks
+// the right-hand cell a wide glyph spills into so it isn't drawn or counted twice.
+const WIDE_CONT = '\u0000';
+function isWideChar(cp) {
+  return (cp >= 0x1100 && cp <= 0x115F) ||   // Hangul Jamo
+         (cp >= 0x2E80 && cp <= 0x303E) ||   // CJK radicals, Kangxi, punctuation
+         (cp >= 0x3041 && cp <= 0x33FF) ||   // Hiragana, Katakana, CJK symbols
+         (cp >= 0x3400 && cp <= 0x4DBF) ||   // CJK Ext A
+         (cp >= 0x4E00 && cp <= 0x9FFF) ||   // CJK Unified Ideographs
+         (cp >= 0xA000 && cp <= 0xA4CF) ||   // Yi
+         (cp >= 0xAC00 && cp <= 0xD7A3) ||   // Hangul syllables
+         (cp >= 0xF900 && cp <= 0xFAFF) ||   // CJK compat ideographs
+         (cp >= 0xFE30 && cp <= 0xFE4F) ||   // CJK compat forms
+         (cp >= 0xFF00 && cp <= 0xFF60) ||   // Fullwidth forms
+         (cp >= 0xFFE0 && cp <= 0xFFE6) ||   // Fullwidth signs
+         (cp >= 0x20000 && cp <= 0x3FFFD);   // CJK Ext B+
+}
+const CJK_FONT = '15px "Noto Sans CJK JP","Hiragana Kaku Gothic ProN","Yu Gothic","MS Gothic","SimSun",sans-serif';
+
 class MonoTerminal {
   constructor() {
     this.cells = new Array(COLS * ROWS).fill(' ');
@@ -341,10 +401,18 @@ class MonoTerminal {
   }
   _nl() { this.cx = 0; this.cy++; if (this.cy >= ROWS) { this.cy = ROWS - 1; this._scroll(); } }
   _put(ch) {
-    if (this.cx >= COLS) this._nl();
-    this.cells[this.cy * COLS + this.cx] = ch;
-    this.attrs[this.cy * COLS + this.cx] = this.curAttr;
-    this.cx++;
+    const wide = isWideChar(ch.codePointAt(0));
+    if (this.cx + (wide ? 2 : 1) > COLS) this._nl();   // wrap if it won't fit on the line
+    const i = this.cy * COLS + this.cx;
+    this.cells[i] = ch;
+    this.attrs[i] = this.curAttr;
+    if (wide) {
+      this.cells[i + 1] = WIDE_CONT;          // right half belongs to this glyph
+      this.attrs[i + 1] = this.curAttr;
+      this.cx += 2;
+    } else {
+      this.cx++;
+    }
   }
   write(str) {
     for (const ch of str) {
@@ -385,14 +453,20 @@ class MonoTerminal {
         for (let x = this.cx; x < COLS; x++) { this.cells[this.cy*COLS + x] = ' '; this.attrs[this.cy*COLS + x] = 0; }
         break;
       }
-      case 'h': if (priv && ps[0] === 25) this.cursorVisible = true;  break;
-      case 'l': if (priv && ps[0] === 25) this.cursorVisible = false; break;
+      case 'h': if (priv && ps[0] === 25) this.cursorVisible = true;
+                if (priv && ps[0] === 1)  rawMode = true;   // ESC[?1h — slider acts as scroll wheel
+                break;
+      case 'l': if (priv && ps[0] === 25) this.cursorVisible = false;
+                if (priv && ps[0] === 1)  rawMode = false;  // ESC[?1l — slider reports analog position
+                break;
       case 'm': // SGR — track bold + reverse (colors map to gray on the device; ignored here)
         for (const n of ps) {
           if (n === 0)       this.curAttr = 0;
           else if (n === 1)  this.curAttr |= ATTR_BOLD;
+          else if (n === 4)  this.curAttr |= ATTR_UNDERLINE;   // IME pre-edit text
           else if (n === 7)  this.curAttr |= ATTR_REVERSE;
           else if (n === 22) this.curAttr &= ~ATTR_BOLD;
+          else if (n === 24) this.curAttr &= ~ATTR_UNDERLINE;
           else if (n === 27) this.curAttr &= ~ATTR_REVERSE;
         }
         break;
@@ -408,22 +482,44 @@ class MonoTerminal {
       }
     }
   }
+  _underline(d, x, y, cells, val) {  // 1px line along the bottom of `cells` cells
+    const py = y * CH + 15; if (py >= H) return;
+    for (let dx = 0; dx < CW * cells; dx++) {
+      const px = x * CW + dx; if (px >= W) break;
+      const i = (py * W + px) * 4;
+      d[i] = d[i+1] = d[i+2] = val; d[i+3] = 255;
+    }
+  }
   render() {
     clearGray();   // clears fill (black) + text (transparent) layers
     const img = tctx.createImageData(W, H), d = img.data;   // alpha 0 everywhere
+    const wideCells = [];                     // CJK glyphs, drawn via fillText below
     for (let y = 0; y < ROWS; y++) {
       const baseY = y * CH + 13;              // baseline within the 16px cell
       for (let x = 0; x < COLS; x++) {
         const ch = this.cells[y * COLS + x];
+        if (ch === WIDE_CONT) continue;       // right half of a wide glyph: skip
         const at = this.attrs[y * COLS + x];
         const reverse = (at & ATTR_REVERSE) !== 0;
         const font = (at & ATTR_BOLD) ? boldFont : sysFont;
+        const cp = ch === ' ' ? 32 : ch.codePointAt(0);
+        const wide = ch !== ' ' && isWideChar(cp);
+        // Wide chars render with the device's GNU Unifont (16px). Until it has
+        // loaded, fall back to the host browser's CJK font (drawn via fillText below).
+        const jp = wide ? getJpFont() : null;
         if (reverse) {
           this._fillCell(d, x, y, 255);                              // white background
-          if (ch !== ' ') font.drawGlyph(d, W, H, ch.charCodeAt(0), x*CW, baseY, 0);   // black glyph
-        } else if (ch !== ' ') {
-          font.drawGlyph(d, W, H, ch.charCodeAt(0), x*CW, baseY, 255);                 // white glyph
+          if (wide) this._fillCell(d, x + 1, y, 255);                // …spanning both cells
+          if (ch !== ' ' && !wide) font.drawGlyph(d, W, H, cp, x*CW, baseY, 0);   // black glyph
+          else if (jp) jp.drawGlyph(d, W, H, cp, x*CW, y*CH + UNI_BASE, 0);
+        } else if (ch !== ' ' && !wide) {
+          font.drawGlyph(d, W, H, cp, x*CW, baseY, 255);                          // white glyph
+        } else if (jp) {
+          jp.drawGlyph(d, W, H, cp, x*CW, y*CH + UNI_BASE, 255);
         }
+        // Underline (SGR 4): marks the uncommitted IME pre-edit text.
+        if (at & ATTR_UNDERLINE) this._underline(d, x, y, wide ? 2 : 1, reverse ? 0 : 255);
+        if (wide && !jp) wideCells.push({ x, y, ch, reverse });   // browser-font fallback
       }
     }
     // Cursor: inverse block over the cell (matches device draw_color 2 / XOR block)
@@ -439,6 +535,17 @@ class MonoTerminal {
       }
     }
     tctx.putImageData(img, 0, 0);
+    // CJK glyphs: the u8g2 terminal font is Latin-only, so paint wide characters
+    // with the host browser's CJK font on top of the composited cell grid.
+    if (wideCells.length) {
+      tctx.font = CJK_FONT;
+      tctx.textBaseline = 'alphabetic';
+      tctx.textAlign = 'left';
+      for (const wc of wideCells) {
+        tctx.fillStyle = wc.reverse ? '#000000' : '#ffffff';
+        tctx.fillText(wc.ch, wc.x * CW, wc.y * CH + 13);
+      }
+    }
     present();
   }
 }
@@ -446,8 +553,11 @@ const terminal = new MonoTerminal();
 window.terminal = terminal;  // for tests
 window.getTerminalText = () => {
   let out = '';
-  for (let y = 0; y < ROWS; y++)
-    out += terminal.cells.slice(y*COLS, (y+1)*COLS).join('').replace(/\s+$/, '') + '\n';
+  for (let y = 0; y < ROWS; y++) {
+    const row = terminal.cells.slice(y*COLS, (y+1)*COLS)
+                  .filter(c => c !== WIDE_CONT).join('');   // drop wide-glyph right halves
+    out += row.replace(/\s+$/, '') + '\n';
+  }
   return out;
 };
 
@@ -479,6 +589,13 @@ const kData  = new Uint8Array(keySab, 64, RING);
 const kState = new Uint8Array(keySab, 64 + RING, KSTATE);
 const _enc   = new TextEncoder();
 
+// kMeta[3] carries the on-screen slider's analog position (0..40, 0xff = not
+// touched) so the worker's get_tp_keys() can report it to apps. rawMode mirrors
+// the terminal's ESC[?1h/?1l state — in raw mode the slider scrolls (sends arrow
+// keys) instead, matching the device firmware's slider→scroll-wheel behaviour.
+Atomics.store(kMeta, 3, 255);
+let rawMode = false;
+
 function sendKey(str) {
   if (!str) return;
   const bytes = _enc.encode(str);
@@ -501,6 +618,8 @@ function keyToData(e) {
   if (m[e.key]) return m[e.key];
   // Alt = the emacs "Meta" key: send ESC followed by the key (e.g. Alt+. → ESC .)
   if (e.altKey && e.key.length === 1) return '\x1b' + e.key;
+  // Ctrl-Space → NUL (emacs C-Space / set-mark in PEM); also covers Ctrl-@.
+  if (e.ctrlKey && (e.code === 'Space' || e.key === ' ' || e.key === '@')) return '\x00';
   if (e.ctrlKey && e.key.length === 1) {
     const c = e.key.toLowerCase().charCodeAt(0) - 96;
     if (c >= 1 && c <= 26) return String.fromCharCode(c);
@@ -517,25 +636,89 @@ window.addEventListener('keydown', e => {
 });
 window.addEventListener('keyup', e => { if (isRunning) setKeyState(e.keyCode, false); });
 
-const KEY_MAP = { up:'\x1b[A', down:'\x1b[B', left:'\x1b[D', right:'\x1b[C', prev:'\x1b[D', next:'\x1b[C' };
-document.querySelectorAll('.btn-key').forEach(btn => {
-  const go = e => {
-    e.preventDefault(); btn.classList.add('pressed');
-    const seq = btn.dataset.key ? KEY_MAP[btn.dataset.key] : btn.dataset.char;
-    if (seq) sendKey(seq);
-    setTimeout(() => btn.classList.remove('pressed'), 120);
+// ── On-screen buttons (D-pad / A / B) ─────────────────────────────────────────
+// Each feeds the same byte stream + HID key-state table as the keyboard, so apps
+// can't tell a tap from a keypress. Directional keys (and Backspace) auto-repeat
+// while held; A (Enter) fires once per press.
+const BTN = {
+  'btn-up':    { seq:'\x1b[A', code:38, repeat:true  },
+  'btn-down':  { seq:'\x1b[B', code:40, repeat:true  },
+  'btn-left':  { seq:'\x1b[D', code:37, repeat:true  },
+  'btn-right': { seq:'\x1b[C', code:39, repeat:true  },
+  'btn-a':     { seq:'\r',     code:13, repeat:false },   // A → Enter
+  'btn-b':     { seq:'\x08',   code:8,  repeat:true  },   // B → Backspace
+};
+for (const [id, cfg] of Object.entries(BTN)) {
+  const el = document.getElementById(id);
+  const press = ev => {
+    ev.preventDefault();
+    if (!isRunning) return;
+    el.classList.add('pressed');
+    el.setPointerCapture?.(ev.pointerId);
+    setKeyState(cfg.code, true);
+    sendKey(cfg.seq);
+    if (cfg.repeat) cfg._d = setTimeout(() => { cfg._i = setInterval(() => sendKey(cfg.seq), 90); }, 320);
   };
-  btn.addEventListener('touchstart', go, { passive:false });
-  btn.addEventListener('mousedown',  go);
+  const release = () => {
+    el.classList.remove('pressed');
+    setKeyState(cfg.code, false);
+    clearTimeout(cfg._d); clearInterval(cfg._i);
+  };
+  el.addEventListener('pointerdown', press);
+  el.addEventListener('pointerup', release);
+  el.addEventListener('pointercancel', release);
+  el.addEventListener('pointerleave', release);
+}
+
+// ── On-screen slider ──────────────────────────────────────────────────────────
+// Mirrors the device's vertical slide bar. In raw mode it acts like a scroll
+// wheel (emits arrow keys per step); otherwise it publishes an analog 0..40
+// position to kMeta[3] for apps that poll get_tp_keys() (e.g. home's menu).
+const sliderTrack = document.getElementById('slider-track');
+const sliderThumb = document.getElementById('slider-thumb');
+let sliderStep = -1;
+function sliderSet(clientY) {
+  const r = sliderTrack.getBoundingClientRect();
+  let f = (clientY - r.top) / r.height;
+  f = Math.max(0, Math.min(1, f));
+  sliderThumb.style.top = (f * 100) + '%';
+  const pos = Math.round(f * 40);            // 0 = top, 40 = bottom (device range)
+  if (rawMode) {
+    const step = Math.floor(pos / 4);        // device slider_step = 4 → one notch
+    if (sliderStep >= 0 && step !== sliderStep) {
+      // iOS-natural ("content follows finger"): dragging down scrolls up.
+      const dir = step > sliderStep ? '\x1b[A' : '\x1b[B';
+      for (let n = Math.abs(step - sliderStep); n > 0; n--) sendKey(dir);
+    }
+    sliderStep = step;
+  } else {
+    Atomics.store(kMeta, 3, pos); Atomics.notify(kMeta, 0);
+  }
+}
+sliderTrack.addEventListener('pointerdown', ev => {
+  ev.preventDefault();
+  if (!isRunning) return;
+  sliderTrack.classList.add('active');
+  sliderTrack.setPointerCapture?.(ev.pointerId);
+  sliderStep = -1;
+  sliderSet(ev.clientY);
 });
+sliderTrack.addEventListener('pointermove', ev => {
+  if (sliderTrack.classList.contains('active')) sliderSet(ev.clientY);
+});
+function sliderEnd() {
+  sliderTrack.classList.remove('active');
+  sliderStep = -1;
+  Atomics.store(kMeta, 3, 255); Atomics.notify(kMeta, 0);   // released → untouched
+}
+sliderTrack.addEventListener('pointerup', sliderEnd);
+sliderTrack.addEventListener('pointercancel', sliderEnd);
 
 // ════════════════════════════════════════════════════════════════════════════
 //  Worker orchestration
 // ════════════════════════════════════════════════════════════════════════════
-let worker = null, isRunning = false, selectedApp = null, customCode = null;
+let worker = null, isRunning = false, selectedApp = null, pendingApp = null;
 
-const runBtn  = document.getElementById('run-btn');
-const stopBtn = document.getElementById('stop-btn');
 const statusDot  = document.getElementById('status-dot');
 const statusText = document.getElementById('status-text');
 const loadingOverlay = document.getElementById('loading-overlay');
@@ -573,7 +756,7 @@ function initWorker() {
       case 'ready':
         setStatus('', 'Ready');
         loadingOverlay.classList.remove('show');
-        terminal.write('Pocket Deck emulator ready.\r\nSelect an app and press Run.\r\n');
+        terminal.write('Pocket Deck emulator ready.\r\nTap an app below to run it.\r\n');
         termDirty = true;
         populateApps(msg.apps || []);
         break;
@@ -593,15 +776,17 @@ function initWorker() {
         termDirty = true;     // and on the next terminal repaint
         break;
       case 'done':
-        isRunning = false; runBtn.disabled = false; stopBtn.disabled = true;
+        isRunning = false;
         setStatus('', 'Done'); log('── finished ──');
+        runPending();
         break;
       case 'error':
-        isRunning = false; runBtn.disabled = false; stopBtn.disabled = true;
+        isRunning = false;
         setStatus('error', 'Error'); log(msg.message, true);
         setMode(false);
         terminal.write('\r\nERROR:\r\n' + msg.message + '\r\n');
         termDirty = true;
+        runPending();
         break;
       case 'clipboard_copy':
         navigator.clipboard?.writeText(msg.data).catch(()=>{});
@@ -620,42 +805,48 @@ function populateApps(apps) {
   list.innerHTML = '';
   apps.forEach(({ id, label, desc }) => {
     const item = document.createElement('div');
-    item.className = 'ios-list-item cursor-pointer hover:bg-black/5';
+    item.className = 'ios-list-item cursor-pointer hover:bg-white/5';
     item.innerHTML = `
       <div>
         <p class="font-body text-[15px]">${label}</p>
         ${desc ? `<p class="font-label text-[11px] text-on-surface-variant mt-0.5">${desc}</p>` : ''}
       </div>
       <span class="material-symbols-outlined text-outline text-[20px]">chevron_right</span>`;
-    item.onclick = () => {
-      document.querySelectorAll('.ios-list-item.selected').forEach(el => el.classList.remove('selected','bg-secondary-container/30'));
-      item.classList.add('selected', 'bg-secondary-container/30');
-      selectedApp = id; customCode = null; runBtn.disabled = false;
-    };
+    item.onclick = () => launchApp(id, item);
     list.appendChild(item);
   });
 }
 
-document.getElementById('file-picker').addEventListener('change', e => {
-  const file = e.target.files[0]; if (!file) return;
-  const reader = new FileReader();
-  reader.onload = ev => {
-    customCode = ev.target.result; selectedApp = null;
-    document.querySelectorAll('.ios-list-item.selected').forEach(el => el.classList.remove('selected','bg-secondary-container/30'));
-    log('Loaded: ' + file.name); runBtn.disabled = false;
-  };
-  reader.readAsText(file);
-});
+// Tapping an app runs it immediately. If another app is running, request it to
+// stop first and remember the choice; the queued app launches once 'done'/'error'
+// arrives (the worker is blocked in Atomics.wait until the running app exits).
+function launchApp(id, item) {
+  if (!worker) return;
+  document.querySelectorAll('.ios-list-item.selected').forEach(el => el.classList.remove('selected','bg-secondary-container/30'));
+  if (item) item.classList.add('selected', 'bg-secondary-container/30');
+  if (isRunning) {
+    pendingApp = id;
+    setStatus('loading', 'Switching…');
+    requestStop();
+    return;
+  }
+  startApp(id);
+}
 
-runBtn.addEventListener('click', () => {
-  if (isRunning || !worker) return;
-  terminal.reset(); resetRenderState();  setMode(false);
-  isRunning = true; runBtn.disabled = true; stopBtn.disabled = false;
+function startApp(id) {
+  selectedApp = id;
+  rawMode = false; sliderStep = -1; Atomics.store(kMeta, 3, 255);   // reset slider state
+  terminal.reset(); resetRenderState(); setMode(false);
+  isRunning = true;
   setStatus('running', 'Running…');
-  log('Starting ' + (selectedApp || 'custom app') + '…');
-  worker.postMessage({ type:'run', app:selectedApp, code:customCode, args:[selectedApp||'app'] });
-});
-stopBtn.addEventListener('click', () => { if (isRunning) requestStop(); });
+  log('Starting ' + id + '…');
+  worker.postMessage({ type:'run', app:id, args:[id] });
+}
+
+function runPending() {
+  if (pendingApp) { const id = pendingApp; pendingApp = null; startApp(id); }
+}
+
 document.getElementById('clear-console').addEventListener('click', () => { consoleOut.innerHTML = ''; });
 
 // Paint an initial blank screen, then boot the worker.

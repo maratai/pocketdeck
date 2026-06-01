@@ -10,6 +10,18 @@ from playwright.async_api import async_playwright
 URL = "http://localhost:8090/emulator/"
 TIMEOUT = 90_000  # 90s for Pyodide to load
 
+# Position-sensitive signature of the screen: detects motion even when the
+# lit-pixel count is unchanged (e.g. a shape moving across the screen).
+# The screen is 1-bit but uses a gray LCD palette (lit ≈ 174, off ≈ 26 on the
+# red channel), so "lit" is a threshold rather than == 255.
+CANVAS_SUM = """() => {
+  const d = document.getElementById('screenCanvas').getContext('2d')
+              .getImageData(0, 0, 400, 240).data;
+  let s = 0;
+  for (let i = 0; i < d.length; i += 4) if (d[i] > 100) s = (s + (i * 2654435761)) >>> 0;
+  return s;
+}"""
+
 async def run():
   async with async_playwright() as p:
     browser = await p.firefox.launch(headless=True)
@@ -43,106 +55,56 @@ async def run():
     isolated = await page.evaluate("() => self.crossOriginIsolated")
     print(f"{'✓' if isolated else '✗'} crossOriginIsolated = {isolated}")
 
-    # ── Check app list populated ───────────────────────────────────────────
+    # ── App list populated (no file-picker / run buttons anymore) ──────────
     app_items = await page.query_selector_all('.ios-list-item')
-    app_count = len(app_items) - 1  # last row is the file picker
-    print(f"{'✓' if app_count > 0 else '✗'} App list: {app_count} apps")
-
-    # Position-sensitive signature: detects motion even when the white-pixel
-    # count is unchanged (e.g. a shape moving across the screen).
-    canvas_sum = """() => {
-      const d = document.getElementById('screenCanvas').getContext('2d')
-                  .getImageData(0, 0, 400, 240).data;
-      let s = 0;
-      for (let i = 0; i < d.length; i += 4) if (d[i]) s = (s + (i * 2654435761)) >>> 0;
-      return s;
-    }"""
+    app_count = len(app_items)
+    labels = [await it.inner_text() for it in app_items]
+    print(f"{'✓' if app_count == 2 else '✗'} App list: {app_count} apps {labels}")
 
     results = {}
 
-    # ── hello_world (terminal) ─────────────────────────────────────────────
-    print("\n── hello_world ─────────────────────────────────────────────────")
-    await page.click('.ios-list-item:first-child')
-    await page.click('#run-btn')
+    # ── PEM editor: tap to run, screen should render content ───────────────
+    print("\n── PEM editor ───────────────────────────────────────────────────")
+    await page.click('.ios-list-item:nth-child(1)')
     await asyncio.sleep(3)
-    term_text = await page.evaluate("() => window.getTerminalText()")
-    hw_ok = 'Hello Pocket Deck' in term_text
-    results['hello_world'] = hw_ok
-    print(f"{'✓' if hw_ok else '✗'} terminal contains greeting")
-    print("   term:", repr(term_text.strip()[:80]))
-    await page.evaluate("() => requestStop()")
-    await asyncio.sleep(1)
+    pem_sum = await page.evaluate(CANVAS_SUM)
+    pem_ok = pem_sum > 0
+    results['pem'] = pem_ok
+    print(f"{'✓' if pem_ok else '✗'} PEM rendered: pixsum {pem_sum}")
 
-    # ── animation (graphics) ───────────────────────────────────────────────
-    print("\n── animation ────────────────────────────────────────────────────")
-    items = await page.query_selector_all('.ios-list-item')
-    await items[1].click()
-    await page.click('#run-btn')
-    await asyncio.sleep(1.5)
-    s1 = await page.evaluate(canvas_sum)
+    # ── Switch to Home while PEM is running (auto-stop + launch queued) ────
+    print("\n── switch to Home ───────────────────────────────────────────────")
+    await page.click('.ios-list-item:nth-child(2)')
+    # Wait for the running flag to settle on the new app.
+    await page.wait_for_function(
+      "() => document.getElementById('status-text')?.textContent.includes('Running')",
+      timeout=15_000
+    )
+    await asyncio.sleep(2)
+    h1 = await page.evaluate(CANVAS_SUM)
     await asyncio.sleep(1.2)
-    s2 = await page.evaluate(canvas_sum)
-    anim_ok = abs(s2 - s1) > 50 and s1 > 0
-    results['animation'] = anim_ok
-    print(f"{'✓' if anim_ok else '✗'} canvas animating: pixsum {s1} → {s2}")
-    await page.evaluate("() => requestStop()")
-    await asyncio.sleep(1)
+    h2 = await page.evaluate(CANVAS_SUM)
+    # Home animates its clock/cursor, so the screen should change over time.
+    home_ok = h1 > 0 and h1 != h2
+    results['home'] = home_ok
+    print(f"{'✓' if home_ok else '✗'} Home running & animating: pixsum {h1} → {h2}")
 
-    # ── 3D cube (graphics + dsplib) ────────────────────────────────────────
-    print("\n── 3D cube ──────────────────────────────────────────────────────")
-    items = await page.query_selector_all('.ios-list-item')
-    await items[2].click()
-    await page.click('#run-btn')
-    await asyncio.sleep(1.5)
-    samples = []
-    for _ in range(5):
-      samples.append(await page.evaluate(canvas_sum))
-      await asyncio.sleep(0.4)
-    nonzero = [s for s in samples if s > 0]
-    changed = len(set(samples)) > 1
-    cube_ok = changed and len(nonzero) >= 3
-    results['cube_3d'] = cube_ok
-    print(f"{'✓' if cube_ok else '✗'} cube samples: {samples}")
-    await page.evaluate("() => requestStop()")
-    await asyncio.sleep(1)
-
-    # ── graphics showcase ──────────────────────────────────────────────────
-    print("\n── graphics ─────────────────────────────────────────────────────")
-    items = await page.query_selector_all('.ios-list-item')
-    await items[3].click()
-    await page.click('#run-btn')
-    await asyncio.sleep(1.5)
-    g1 = await page.evaluate(canvas_sum)
-    await asyncio.sleep(1.0)
-    g2 = await page.evaluate(canvas_sum)
-    gfx_ok = abs(g2 - g1) > 50 and g1 > 0
-    results['graphics'] = gfx_ok
-    print(f"{'✓' if gfx_ok else '✗'} graphics animating: pixsum {g1} → {g2}")
-
-    # verify true 1-bit output + dithering (only 0/255 values, with a mix of both)
+    # verify true 1-bit output: every pixel is exactly one of the two palette
+    # values (lit / off), with a mix of both on screen.
     histo = await page.evaluate("""() => {
       const d = document.getElementById('screenCanvas').getContext('2d').getImageData(0,0,400,240).data;
-      let black=0, white=0, other=0;
-      for (let i=0;i<d.length;i+=4){ const v=d[i]; if(v===0)black++; else if(v===255)white++; else other++; }
-      return {black, white, other};
+      const vals = new Set(); let lit=0, off=0;
+      for (let i=0;i<d.length;i+=4){ const v=d[i]; vals.add(v); if(v>100)lit++; else off++; }
+      return {lit, off, distinct:[...vals].sort((a,b)=>a-b)};
     }""")
-    frac = histo['white'] / (histo['black'] + histo['white'] + histo['other'])
-    mono_ok = histo['other'] == 0 and 0.02 < frac < 0.98
-    results['mono_dither'] = mono_ok
-    print(f"{'✓' if mono_ok else '✗'} 1-bit mono: black={histo['black']} white={histo['white']} "
-          f"gray={histo['other']} (white {frac*100:.0f}%)")
+    total = histo['lit'] + histo['off']
+    frac = histo['lit'] / total
+    mono_ok = len(histo['distinct']) <= 2 and 0.0 < frac < 1.0
+    results['mono'] = mono_ok
+    print(f"{'✓' if mono_ok else '✗'} 1-bit mono: lit={histo['lit']} off={histo['off']} "
+          f"values={histo['distinct']} (lit {frac*100:.0f}%)")
 
-    # ── keyboard quit ('q') ────────────────────────────────────────────────
-    print("\n── keyboard quit ────────────────────────────────────────────────")
-    await page.focus('body')
-    await page.keyboard.press('q')
-    await asyncio.sleep(1.0)
-    st = await page.inner_text('#status-text')
-    quit_ok = st.strip().lower() in ('done', 'idle')
-    results['keyboard_quit'] = quit_ok
-    print(f"{'✓' if quit_ok else '✗'} app quit on 'q' → status={st!r}")
-
-    animating = all(results.values())
+    passed = all(results.values())
 
     # ── Summary ───────────────────────────────────────────────────────────
     print("\n── Console output (last 15 lines) ───────────────────────────────")
@@ -158,7 +120,7 @@ async def run():
       print(f"  {'PASS' if v else 'FAIL'}  {k}")
 
     await browser.close()
-    return 0 if (app_count > 0 and animating) else 1
+    return 0 if (app_count == 2 and passed) else 1
 
 if __name__ == '__main__':
   sys.exit(asyncio.run(run()))

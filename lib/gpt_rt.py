@@ -90,7 +90,7 @@ def build_session_instructions(model, file_list, references, app_list=None, agen
   )
 
   if agent:
-    text += "\nUse command_with_return to look up information before answering (e.g. list files with 'ls /sd/Documents/word*', read a file with 'cat /path'). Always call it when the user asks about files or device state.\nUse write_file to create or save files on the device filesystem before launching an app that needs them.\n"
+    text += "\nUse command_with_return to look up information before answering (e.g. list files with 'ls /sd/Documents/word*', read a file with 'cat /path'). Always call it when the user asks about files or device state.\nUse write_file to create or save files on the device filesystem before launching an app that needs them.\nWhen you get a logical question which can be solved by writing code, you can write Micropython code temporarily on /sd/py, filename starts temp_*, then delete after the creation (rm command). \n"
     if app_list:
       text += "\nUse launch_app to open apps. Pass optional args (e.g. a file path) to open a specific file. Available apps:\n"
       for item in app_list:
@@ -439,7 +439,7 @@ class RealtimeAgent:
         {
           "type": "function",
           "name": "command_with_return",
-          "description": "Run a text command and return its output. Use to answer questions about files or content. Supported: ls (list files, supports glob patterns like 'word*'), cat (read file), grep (search in files), and curl (get content from web). You can't use pipe '|', it's not Linux, do not use the undocumented options. Detailed usage are stated in README.md..",
+          "description": "Run a text command and return its output. Use to answer questions about files or content. Supported: ls (list files, supports glob patterns like 'word*'), cat (read file), rm, mv, cp, grep (search in files), and curl (get content from web). You can't use pipe '|', it's not Linux, do not use the undocumented options. Detailed usage are stated in README.md..",
           "parameters": {
             "type": "object",
             "properties": {

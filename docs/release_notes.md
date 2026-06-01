@@ -1,3 +1,24 @@
+## Release Note May 31, 2026
+
+### PEM
+
+- Undo (C-/)
+- little enhancements
+- C mode
+- The script supports Linux.
+- Mark set (C-space), copy (M-w), cut (C-w)
+- Incremental search on select dialog (such as file list)
+- Cursor move, insert text on input dialog 
+
+### Firmware
+
+- Add some missing key bindings.
+
+### Emulator
+
+- Emulator is available
+
+
 ## Release Note May 30, 2026
 
 ## Application
