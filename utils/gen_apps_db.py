@@ -28,8 +28,8 @@ FLAG_RE = re.compile(r'(?<![A-Za-z0-9])(-[a-zA-Z])(?![A-Za-z0-9])')
 NAME_RE = re.compile(r'^[a-z][a-z0-9_]*$')
 
 # `[filename]`, `[file]`, `file_name`, etc. in code blocks/inline code.
-FILE_HINTS = ('filename', 'file_name', '[file', '[path', 'wav_file',
-              'book_filename', 'board_file', '<local>')
+FILE_HINTS = ('filename', 'file_name', '[file', '[path', 'wav_file', 'file',
+              'book_filename', 'board_file', '<local>','src','dst','dir_name','[dir')
 
 
 def parse_table_rows(lines, start_idx):
@@ -48,8 +48,9 @@ def parse_table_rows(lines, start_idx):
     # Skip "or"-style alternatives — take first plain token.
     name_tokens = re.split(r'\s+', name_part)
     name = name_tokens[0]
+    name_args = name_tokens[1:]
     if NAME_RE.match(name):
-      yield name, summary
+      yield name, name_args, summary
     i += 1
 
 
@@ -98,11 +99,12 @@ def parse(md):
   # Tables in "Command Shell" section.
   for i, line in enumerate(lines):
     if line.startswith('command | summary'):
-      for name, summary in parse_table_rows(lines, i):
+      for name, name_args, summary in parse_table_rows(lines, i):
+        #print(summary)
         apps[name] = {
             'summary': summary,
             'flags': sorted(set(FLAG_RE.findall(summary))),
-            'takes_file': any(h in summary.lower() for h in FILE_HINTS),
+            'takes_file': any(h in ' '.join(name_args).lower() for h in FILE_HINTS),
         }
 
   # ### per-app sections — only inside "## Basic applications" so we skip

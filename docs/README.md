@@ -178,7 +178,7 @@ command | summary
 --------|---------
 cmd | launch a new command shell. Syntax is 'cmd [screen_number].
 ssh | ssh command. Syntax is "ssh host username password".
-scp | scp command. Syntax is "scp host username password copy_from copy_to". Remote path starts with ":". Example: scp 192.168.1.100 user password test.txt :/home/user/test.txt  .
+scp src dst | scp command. Syntax is "scp host username password copy_from copy_to". Remote path starts with ":". Example: scp 192.168.1.100 user password test.txt :/home/user/test.txt  .
 Python module name or py module_name | Execute Python command. Syntax is "module_name [args] [args..]". Normally  module name is Python filename. Searching path is in sys.path list.
 
 Here are some basic commands written by Python.
