@@ -6,6 +6,7 @@
   <title>Pocket Deck Emulator</title>
   <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,200..800;1,6..72,200..800&family=Work+Sans:wght@300;400;500;600&family=Space+Grotesk:wght@300;400;500;700&display=swap" rel="stylesheet"/>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
   <script>
     tailwind.config = {
       darkMode: "class",
@@ -26,13 +27,29 @@
       }},
     };
   </script>
-  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
   <script src="./fonts/t0_15_me.js"></script>
   <script src="./fonts/t0_15b_me.js"></script>
   <script src="./fonts/u8g2font.js"></script>
   <script src="./fonts/unifont_large.js" defer></script>
   <style>
     .material-symbols-outlined { font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24; }
+    /* Custom theme tokens — defined here so they work regardless of whether
+       Tailwind's Play CDN applies the tailwind.config custom theme. */
+    .text-on-surface         { color: #e9e9ec }
+    .text-on-surface-variant { color: #a6a6ae }
+    .text-outline            { color: #7c7c85 }
+    .text-on-primary         { color: #1a1a1f }
+    .bg-surface              { background-color: #2e2e37 }
+    .bg-surface-container    { background-color: #1e1e24 }
+    .bg-surface-container-high     { background-color: #26262d }
+    .bg-surface-container-highest  { background-color: #2e2e36 }
+    .bg-surface-container-low      { background-color: #141418 }
+    .bg-primary-container    { background-color: #34343c }
+    .rounded-ios             { border-radius: 10px }
+    .rounded-ios-lg          { border-radius: 14px }
+    .font-headline           { font-family: Newsreader, serif }
+    .font-body               { font-family: 'Work Sans', sans-serif }
+    .font-label              { font-family: 'Space Grotesk', sans-serif }
     /* Always reserve the scrollbar gutter so the page width — and therefore the
        w-full device artwork's scale — never changes when a scrollbar appears or
        disappears (e.g. as content height shifts between app launches). */
