@@ -2,10 +2,92 @@
 # Pem -- A editor for pocket deck
 # Copyright Nunomo LLC
 
-# For standard Linux system, turn off this flag
-pdeck_enabled = True
-
 import sys
+
+# The same source runs on the Pocket Deck (MicroPython) and on desktop CPython
+# (for development and testing). The device exposes a native `pdeck` module; if
+# it can't be imported we're on CPython, so set up a pure-Python fallback layer
+# up front -- before importing any device helper modules -- so the rest of the
+# file (and those helpers) is left unchanged.
+try:
+  import pdeck
+  pdeck_enabled = True
+except ImportError:
+  pdeck_enabled = False
+  import time, types, unicodedata
+
+  # MicroPython exposes these as builtins; provide CPython equivalents.
+  def const(x):
+    return x
+
+  if not hasattr(time, 'sleep_ms'):
+    time.sleep_ms = lambda ms: time.sleep(ms / 1000)
+  if not hasattr(time, 'ticks_us'):
+    time.ticks_us = lambda: int(time.perf_counter() * 1000000)
+
+  class _pdeck_shim:
+    # Stand-in for the device's native `pdeck` module. Only the calls reachable
+    # on the CPython path are implemented; the rest are no-ops so device helper
+    # modules that `import pdeck` still load.
+    def get_utf8_width(self, ch):
+      # ch may be an int code point, a 1-char str, or a bytes/bytearray slice.
+      if isinstance(ch, int):
+        ch = chr(ch)
+      elif isinstance(ch, (bytes, bytearray)):
+        try:
+          ch = ch.decode('utf-8')
+        except Exception:
+          return 1
+        if not ch:
+          return 1
+        ch = ch[0]
+      return 2 if unicodedata.east_asian_width(ch) in ('W', 'F') else 1
+
+    def clipboard_copy(self, data):
+      pass
+
+    def clipboard_paste(self):
+      return b''
+
+    def shared_filelist(self, filename):
+      pass
+
+    def delay_tick(self, n):
+      time.sleep_ms(n)
+
+    def led(self, *a):
+      pass
+
+    def wifi_connected(self):
+      return True
+
+  pdeck = _pdeck_shim()
+  sys.modules['pdeck'] = pdeck
+
+  # The local MicroPython `argparse` port (and other helpers) import
+  # `pdeck_utils`; provide just the stdout-backed stream it needs.
+  _pdeck_utils = types.ModuleType('pdeck_utils')
+  class _vscreen_stream:
+    def write(self, s):
+      sys.stdout.write(s)
+    def flush(self):
+      sys.stdout.flush()
+  _pdeck_utils.vscreen_stream = _vscreen_stream
+  sys.modules['pdeck_utils'] = _pdeck_utils
+
+  # jp_input imports MicroPython's `network` and gates kana conversion on a
+  # connected WLAN. On the desktop we're effectively always online, so a shim
+  # whose isconnected() is True lets the (local) romaji->hiragana path run; the
+  # online henkan step keeps its own try/except for when there's no network.
+  _network = types.ModuleType('network')
+  _network.STA_IF = 0
+  class _WLAN:
+    def __init__(self, *a):
+      pass
+    def isconnected(self):
+      return True
+  _network.WLAN = _WLAN
+  sys.modules['network'] = _network
 
 import pem_keymap_default as km
 
@@ -23,20 +105,38 @@ except Exception as e:
 loaded = True
 
 import re
-if pdeck_enabled:
-  import pdeck
-else:
+if not pdeck_enabled:
   import termios
-  import sys
+  import select
 
 import os
 import time
 import esclib as elib
 import argparse
 import array
-import jp_input
-import ls
-import auto_connect
+
+# Where the "resume last file" state is stored. The device keeps it under
+# /config; on CPython that path doesn't exist, so use the home directory.
+if pdeck_enabled:
+  PEM_FILELIST = '/config/pem_filelist.txt'
+else:
+  PEM_FILELIST = os.path.join(os.path.expanduser('~'), '.pem_filelist.txt')
+
+# Device-only helper modules. They pull in MicroPython-only modules (network,
+# pdeck_utils, ...), so on CPython we import what we can and degrade gracefully:
+# Japanese input and filename TAB-completion are simply unavailable.
+try:
+  import jp_input
+except Exception:
+  jp_input = None
+try:
+  import ls
+except Exception:
+  ls = None
+try:
+  import auto_connect
+except Exception:
+  auto_connect = None
 
 el = elib.esclib()
 
@@ -69,6 +169,20 @@ def file_exists(name):
   except OSError:
     return False
 
+def _expand_user(path):
+  # '~' / '~/...' home-directory shortcut is a desktop convenience; the device
+  # has no home directory, so only expand it on CPython.
+  if not pdeck_enabled and path and path[0] == '~':
+    return os.path.expanduser(path)
+  return path
+
+def _is_dir(path):
+  # 0x4000 is S_IFDIR on both CPython and MicroPython stat results.
+  try:
+    return (os.stat(path)[0] & 0x4000) != 0
+  except OSError:
+    return False
+
 # ---- Syntax highlighting ----
 _PY_KEYWORDS = frozenset([
   'if','elif','else','for','while','def','class','return',
@@ -82,8 +196,35 @@ _PY_KEYWORDS_B = frozenset([
   b'try',b'except',b'finally',b'with',b'as',b'pass',b'break',b'continue',
   b'raise',b'yield',b'lambda',b'del',b'global',b'nonlocal',
 ])
-_B_HL_ON  = b'\x1b[1m'
+_C_KEYWORDS_B = frozenset([
+  b'auto',b'break',b'case',b'char',b'const',b'continue',b'default',b'do',
+  b'double',b'else',b'enum',b'extern',b'float',b'for',b'goto',b'if',b'inline',
+  b'int',b'long',b'register',b'restrict',b'return',b'short',b'signed',b'sizeof',
+  b'static',b'struct',b'switch',b'typedef',b'union',b'unsigned',b'void',
+  b'volatile',b'while',b'bool',b'true',b'false',b'NULL',
+  # common C++ extras so .h/.cpp also look reasonable
+  b'class',b'namespace',b'template',b'public',b'private',b'protected',
+  b'new',b'delete',b'this',b'using',b'virtual',b'nullptr',
+])
 _B_HL_OFF = b'\x1b[0m'
+if pdeck_enabled:
+  # The device's mono terminal only understands attribute SGRs (bold), so every
+  # category maps to bold; comments/strings stay plain, matching the old look.
+  _HL_KEYWORD = b'\x1b[1m'
+  _HL_COMMENT = None
+  _HL_STRING  = None
+  _HL_HEADING = b'\x1b[1m'
+  _HL_EMPH    = b'\x1b[1m'
+  _HL_LINK    = b'\x1b[1m'
+else:
+  # Desktop terminals support ANSI color, so give each token type its own hue.
+  _HL_KEYWORD = b'\x1b[38;5;204m'    # pink   keywords
+  _HL_COMMENT = b'\x1b[38;5;245m'    # gray   comments
+  _HL_STRING  = b'\x1b[38;5;114m'    # green  strings
+  _HL_HEADING = b'\x1b[1;38;5;39m'   # bold blue   md headings
+  _HL_EMPH    = b'\x1b[1;38;5;214m'  # bold orange md **emphasis**
+  _HL_LINK    = b'\x1b[4;38;5;81m'   # underlined cyan md links
+_B_HL_ON = _HL_KEYWORD  # backward-compatible alias
 
 def _is_id_cont(c):
   return c.isalpha() or c.isdigit() or c == '_'
@@ -102,7 +243,7 @@ def _hl_md(b):
       idx += 1
     # if # is not followed by space, it's a tag.
     if len(b) > idx and b[idx] == 0x20:
-      return b''.join([_B_HL_ON, b, _B_HL_OFF])
+      return b''.join([_HL_HEADING, b, _B_HL_OFF])
 
   if b'**' not in b and b'[' not in b and b'#' not in b:
     return None
@@ -116,7 +257,7 @@ def _hl_md(b):
     if c == 42 and i + 1 < n and b[i + 1] == 42:  # '**'
       j = b.find(b'**', i + 2)
       if j != -1:
-        append(_B_HL_ON); append(b[i:j + 2]); append(_B_HL_OFF)
+        append(_HL_EMPH); append(b[i:j + 2]); append(_B_HL_OFF)
         modified = True
         i = j + 2
         continue
@@ -128,14 +269,14 @@ def _hl_md(b):
       if i + 1 < n and b[i + 1] == 91:  # '[['
         j = b.find(b']]', i + 2)
         if j != -1:
-          append(_B_HL_ON); append(b[i:j + 2]); append(_B_HL_OFF)
+          append(_HL_LINK); append(b[i:j + 2]); append(_B_HL_OFF)
           modified = True
           i = j + 2
           continue
       else:
         j = b.find(b']', i + 1)
         if j != -1:
-          append(_B_HL_ON); append(b[i:j + 1]); append(_B_HL_OFF)
+          append(_HL_LINK); append(b[i:j + 1]); append(_B_HL_OFF)
           modified = True
           i = j + 1
           continue
@@ -143,7 +284,7 @@ def _hl_md(b):
       j = b.find(b' ', i + 1)
       if j == -1:
         j=len(b)-1
-      append(_B_HL_ON); append(b[i:j + 1]); append(_B_HL_OFF)
+      append(_HL_HEADING); append(b[i:j + 1]); append(_B_HL_OFF)
       modified = True
       i = j + 1
       continue
@@ -164,16 +305,97 @@ def _hl_py(b):
   modified = False
   while i < n:
     c = b[i]
-    if c == 35:  # '#'
-      append(b[i:])
+    if c == 35:  # '#' comment runs to end of line
+      if _HL_COMMENT is None:
+        append(b[i:])
+      else:
+        append(_HL_COMMENT); append(b[i:]); append(_B_HL_OFF)
+        modified = True
       break
+    if _HL_STRING is not None and (c == 34 or c == 39):  # " or ' string literal
+      j = i + 1
+      while j < n:
+        if b[j] == 92:  # backslash escapes the next byte
+          j += 2
+          continue
+        if b[j] == c:
+          j += 1
+          break
+        j += 1
+      append(_HL_STRING); append(b[i:j]); append(_B_HL_OFF)
+      modified = True
+      i = j
+      continue
     if (65 <= c <= 90) or (97 <= c <= 122) or c == 95:  # isalpha or '_'
       j = i + 1
       while j < n and _is_id_cont_b(b[j]):
         j += 1
       word = b[i:j]
       if word in _PY_KEYWORDS_B:
-        append(_B_HL_ON)
+        append(_HL_KEYWORD)
+        append(word)
+        append(_B_HL_OFF)
+        modified = True
+      else:
+        append(word)
+      i = j
+    else:
+      append(b[i:i + 1])
+      i += 1
+  if not modified:
+    return None
+  return b''.join(parts)
+
+def _hl_c(b):
+  # Like _hl_py but with C tokens: // and /* */ comments, "..."/'...' literals,
+  # C keywords. Note '#' is a preprocessor directive in C, not a comment.
+  if type(b) is not bytes:
+    b = bytes(b)
+  parts = []
+  append = parts.append
+  i = 0
+  n = len(b)
+  modified = False
+  while i < n:
+    c = b[i]
+    if c == 47 and i + 1 < n and b[i + 1] == 47:  # '//' line comment
+      if _HL_COMMENT is None:
+        append(b[i:])
+      else:
+        append(_HL_COMMENT); append(b[i:]); append(_B_HL_OFF)
+        modified = True
+      break
+    if c == 47 and i + 1 < n and b[i + 1] == 42:  # '/*' block comment
+      j = b.find(b'*/', i + 2)
+      end = (j + 2) if j != -1 else n   # unterminated -> to end of line
+      if _HL_COMMENT is None:
+        append(b[i:end])
+      else:
+        append(_HL_COMMENT); append(b[i:end]); append(_B_HL_OFF)
+        modified = True
+      i = end
+      continue
+    if _HL_STRING is not None and (c == 34 or c == 39):  # " string or ' char
+      j = i + 1
+      while j < n:
+        if b[j] == 92:  # backslash escapes the next byte
+          j += 2
+          continue
+        if b[j] == c:
+          j += 1
+          break
+        j += 1
+      append(_HL_STRING); append(b[i:j]); append(_B_HL_OFF)
+      modified = True
+      i = j
+      continue
+    if (65 <= c <= 90) or (97 <= c <= 122) or c == 95:  # isalpha or '_'
+      j = i + 1
+      while j < n and _is_id_cont_b(b[j]):
+        j += 1
+      word = b[i:j]
+      if word in _C_KEYWORDS_B:
+        append(_HL_KEYWORD)
         append(word)
         append(_B_HL_OFF)
         modified = True
@@ -194,6 +416,8 @@ def _hl_line(line_bytes, mode):
     out = _hl_py(line_bytes)
   elif mode == 'md':
     out = _hl_md(line_bytes)
+  elif mode == 'c':
+    out = _hl_c(line_bytes)
   else:
     return line_bytes
   return line_bytes if out is None else out
@@ -258,11 +482,16 @@ class editor:
     self.jpfont_loaded = False
 
   def load_jpfont(self):
+    # The device must load a CJK bitmap font into its terminal; a desktop
+    # terminal already renders Japanese with its own font, so this is a no-op.
+    if not pdeck_enabled:
+      self.jpfont_loaded = True
+      return
     import fontloader
     #fontname = 'font_unifont_japanese3'
     fontname = 'unifont_large'
     fontloader.load(fontname)
-  
+
     font = fontloader.font_list[fontname]
     self.v.v.set_terminal_font(font,font,8,16)
     self.jpfont_loaded = True
@@ -343,12 +572,17 @@ class editor:
 
   def print_select_dialog(self):
     self.v.print(el.set_font_color(7)) #invert
-    title = f"  ** {self.sd_info.subject} ** "
-    self.v.print(title + " "*(self.text_width - len(title)))
+    # Show the incremental-search query (if any) in the title bar.
+    if self.sd_info.query:
+      title = f"  ** {self.sd_info.subject} ** {self.sd_info.query}"
+    else:
+      title = f"  ** {self.sd_info.subject} ** "
+    self.v.print(title[:self.text_width] + " "*(self.text_width - len(title)))
     self.v.print("\r\n")
-    
-    b_list = self.sd_info.slist[self.sd_info.scroll:]
-    
+
+    # Display the filtered view (indices into slist that match the query).
+    b_list = [self.sd_info.dlist[idx] for idx in self.sd_info.filtered[self.sd_info.scroll:]]
+
     self.v.print(el.move_cursor(self.text_height +2,1))
     #print(f"bufs {b_list}")
     for i in range(0,self.sd_info.height):
@@ -372,7 +606,9 @@ class editor:
   def refresh_screen(self):
     bm.start_bench()
 
-    if self.dmod:
+    # While a region mark is active, re-render every refresh so the highlight
+    # tracks the moving cursor (plain cursor moves otherwise skip rendering).
+    if self.dmod or self.file.mark_row is not None:
       self.render_main_text()
       self.dmod = False
     #else:
@@ -682,7 +918,20 @@ class editor:
     if answer.chars == b"n":
       return
     self.close_file()
-        
+
+  def _open_default_dir(self):
+    # Default directory for the open dialog: the current buffer's file
+    # directory (emacs-style), falling back to the working directory for a
+    # buffer with no filename. Always ends with '/'.
+    fn = self.file.filename
+    d = _dirname(fn) if fn else "."
+    if d == "." or d == "":
+      d = os.getcwd()
+    if not d.endswith("/"):
+      d += "/"
+    return d
+
+
   def process_replace_yn(self, answer):
     #print(f"Answer: {answer.decode()}")
     if answer.chars == b"q":
@@ -690,6 +939,7 @@ class editor:
       self.search_info.close()
       return
     if answer.chars == b"y":
+      self.file.undo.record(self, 'other')
       row = self.file.rows[self.file_row]
       row.delete_str(self.file_col, len(self.search_info.query_str))
       row.insert_str(self.file_col, self.search_info.replace_str)
@@ -713,13 +963,45 @@ class editor:
     self.file.push_pos_history(pos)
     self.jump_to_position(intnum,0, 1)
 
+  def _dir_marked_list(self, base, names):
+    # Build (full_paths, display_names) for a file-list dialog. Directories get
+    # a trailing '/' marker. The full path is the callback value; the display is
+    # just the basename so deep paths don't overflow the dialog width.
+    full = []
+    disp = []
+    for n in names:
+      p = base + '/' + n
+      if _is_dir(p):
+        full.append(p + '/')
+        disp.append(n + '/')
+      else:
+        full.append(p)
+        disp.append(n)
+    return full, disp
+
   def process_open_file_select(self, idx, item):
     #print(f' {idx}:{item}')
-    #self.open_input_line_dialog('Open file','Filename', self.process_open_file, answer_list = None, default_str=item.encode('utf-8'))
+    # A directory is marked with a trailing '/'. Selecting it opens another
+    # file-selection dialog showing its contents instead of "opening" it.
+    path = item[:-1] if (len(item) > 1 and item[-1] == '/') else item
+    if _is_dir(path) and ls is not None:
+      flist = ls.list_file(path)
+      if flist and len(flist[1]) > 0:
+        full, disp = self._dir_marked_list(flist[0], flist[1])
+        self.open_select_dialog(full, min(len(full), 5), flist[0], self.process_open_file_select, dlist=disp)
+      else:
+        self.set_message("Empty directory: " + path)
+      return
     self.process_open_file(item.encode('utf-8'))
     
   def process_open_file(self, name, linenum = 0, colnum = 0, force = False):
     #print(f"Opening.. file={name.decode()}")
+    name = _expand_user(name.decode()).encode('utf-8')
+
+    # A directory isn't a file: browse it in a selection dialog instead.
+    if ls is not None and _is_dir(name.decode()):
+      self.process_open_file_select(0, name.decode())
+      return
 
     if not force and (name.decode() == self.file.filename or self.switch_buf_if_exists(name.decode())):
       if self.file_row >= len(self.file.rows):
@@ -774,6 +1056,55 @@ class editor:
       pdeck.clipboard_copy(self.yankbuf.curbuf.encode('utf-8'))
     return
 
+  def set_mark(self):
+    self.file.mark_row = self.file_row
+    self.file.mark_col = self.file_col
+    self.set_message("Mark set")
+
+  def _region_bounds(self):
+    # Return ((r1,c1),(r2,c2)) ordered, clamped to the buffer, or None.
+    if self.file.mark_row is None:
+      return None
+    mr = self.file.mark_row
+    if mr >= len(self.file.rows):
+      mr = len(self.file.rows) - 1
+    mc = self.file.mark_col
+    mlen = self.file.rows[mr].get_len()
+    if mc > mlen:
+      mc = mlen
+    m = (mr, mc)
+    p = (self.file_row, self.file_col)
+    return (m, p) if m <= p else (p, m)
+
+  def _region_to_yank(self, text):
+    self.yankbuf.reset_buf()
+    self.yankbuf.add_str(text)
+    self.adding_yank = False
+
+  def copy_region(self):
+    b = self._region_bounds()
+    if b is None:
+      self.set_message("No mark set")
+      return
+    (r1, c1), (r2, c2) = b
+    self._region_to_yank(self.file.extract_region(r1, c1, r2, c2))
+    self.file.mark_row = None   # deactivate region after copying
+    self.dmod = True
+    self.set_message("Region copied")
+
+  def kill_region(self):
+    b = self._region_bounds()
+    if b is None:
+      self.set_message("No mark set")
+      return
+    (r1, c1), (r2, c2) = b
+    self.file.undo.record(self, 'other')
+    self._region_to_yank(self.file.extract_region(r1, c1, r2, c2))
+    self.file.delete_region(r1, c1, r2, c2)
+    self.file.mark_row = None
+    self.file_row, self.file_col = r1, c1
+    self.jump_to_position(self.file_row, self.file_col, -1)
+
   def process_file_select(self, idx, item):
     #print("process_file_select")
     self.file_list.insert(0,self.file)
@@ -814,11 +1145,11 @@ class editor:
           self.sl_info = None
           s_callback(line)
       return     
-    # Backspace
-    elif keys == b'\x08':
-      if self.sl_info.line.len !=0 and self.sl_info.cur != 0:
+    # Backspace (0x08 from the device keyboard, 0x7f/DEL from PC terminals)
+    elif keys in (b'\x08', b'\x7f'):
+      if self.sl_info.line.get_len() !=0 and self.sl_info.cur != 0:
         self.sl_info.line.delete_str(self.sl_info.cur -1,1)
-        self.sl_info.cur -= 1  
+        self.sl_info.cur -= 1
     # Enter
     elif keys in (b'\x0d', b'\x0a'): 
       #print("Calling callback")
@@ -832,22 +1163,24 @@ class editor:
       s_callback(line)
     elif keys in (b'\x09') and self.sl_info.callback == self.process_open_file:
       #TAB
+      if ls is None:
+        return
       try:
-        flist = ls.list_file(self.sl_info.line.decode() + '*')
+        flist = ls.list_file(_expand_user(self.sl_info.line.decode()) + '*')
         if len(flist[1]) > 0:
           if len(flist[1]) > 1:
-            slist=[]
-            for item in flist[1]:
-              slist.append(flist[0] + '/' + item)
-            
+            full, disp = self._dir_marked_list(flist[0], flist[1])
+
             self.h_diff -= 1
             self.file.h += 1
             self.text_height += 1
             self.sl_info = None
-            self.open_select_dialog(slist,5,"File list", self.process_open_file_select)
-            
+            self.open_select_dialog(full, 5, flist[0], self.process_open_file_select, dlist=disp)
+
           else:
             new_line = (flist[0] + '/' + flist[1][0])
+            if _is_dir(new_line):
+              new_line += '/'
             self.sl_info.line.update_str(bytearray(new_line.encode('utf-8')))
             self.sl_info.cur = len(new_line)
       except Exception as e:
@@ -859,8 +1192,13 @@ class editor:
 
     
   def process_select_dialog(self, keys):
+    # In a chord menu, typing is reserved for direct second-key dispatch, so
+    # incremental search is disabled there; everywhere else, printable keys
+    # filter the list (emacs-style).
+    is_chord = bool(self._chord_items)
+
     # Direct chord shortcut: pressing the second key while the chord menu is open
-    if self._chord_items:
+    if is_chord:
       for i, seq in enumerate(self._chord_items):
         if keys == seq[1:2]:
           self.h_diff -= self.sd_info.height
@@ -874,8 +1212,8 @@ class editor:
             self.scroll_row, self.scroll_col = self._chord_saved_scroll
             self._chord_saved_scroll = None
           return
-    #Ctrl-g to quit
-    if keys in (b'\x07', b'q'):
+    #Ctrl-g to quit (also 'q' in chord menus, where 'q' isn't a search char)
+    if keys == b'\x07' or (is_chord and keys == b'q'):
       self.mode = self.MODE_NORMAL
       self.h_diff -= self.sd_info.height
       self.text_height += self.sd_info.height
@@ -896,22 +1234,40 @@ class editor:
         self.sd_info.scroll -= 1
     #Down
     elif keys in  (b'\x1b[B', b'\x0e'):
-      if self.sd_info.scroll + self.sd_info.cur < len(self.sd_info.slist) - 1:
+      if self.sd_info.scroll + self.sd_info.cur < len(self.sd_info.filtered) - 1:
         self.sd_info.cur += 1
       if self.sd_info.cur == self.sd_info.height:
         self.sd_info.cur -= 1
         self.sd_info.scroll += 1
     #Enter
-    elif keys in ( b'\x0d', b'\x0a'): 
+    elif keys in ( b'\x0d', b'\x0a'):
+      if not self.sd_info.filtered:
+        return  # nothing matches the search; ignore
+      orig = self.sd_info.filtered[self.sd_info.cur + self.sd_info.scroll]
       self.h_diff -= self.sd_info.height
       self.text_height += self.sd_info.height
       self.file.h += self.sd_info.height
-      self.sd_info.callback(self.sd_info.cur + self.sd_info.scroll, self.sd_info.slist[self.sd_info.cur + self.sd_info.scroll])
-      self.mode = self.MODE_NORMAL
-      self.sd_info = None
+      prev = self.sd_info
+      prev.callback(orig, prev.slist[orig])
+      # The callback may open a fresh dialog (e.g. drilling into a directory);
+      # only fall back to normal mode if it didn't.
+      if self.sd_info is prev:
+        self.mode = self.MODE_NORMAL
+        self.sd_info = None
       return
+    # Incremental search (non-chord dialogs): backspace edits, printables filter.
+    elif not is_chord and keys in (b'\x08', b'\x7f'):
+      self.sd_info.query = self.sd_info.query[:-1]
+      self.sd_info.apply_filter()
+    elif not is_chord and keys[0] >= 0x20 and keys[0] != 0x7f:
+      try:
+        self.sd_info.query += keys.decode('utf-8')
+      except Exception:
+        pass
+      self.sd_info.apply_filter()
 
   def process_comp_select(self, idx, comp):
+    self.file.undo.record(self, 'other')
     pos, sym = self.file.get_symbol(self.file_row, self.file_col)
     row = self.file.rows[self.file_row]
     row.delete_str(pos,len(sym))
@@ -972,7 +1328,7 @@ class editor:
 
       self.search_exec(-1)
       
-    elif keys == b'\x08':
+    elif keys in (b'\x08', b'\x7f'):
       self.search_info.query_str = self.search_info.query_str[:-1]
       if (self.search_info.query_str) == 0:
         self.scroll_row, self.scroll_col, self.file_row, self.file_col = self.search_info.saved_pos
@@ -1008,6 +1364,8 @@ class editor:
   def _fmt_chord_key(self, k):
     if k < 0x20:
       return 'C-' + chr(k + 0x40).lower()
+    if k == 0x20:
+      return 'SPC'
     return chr(k)
 
   def _open_chord_dialog(self, prefix):
@@ -1046,9 +1404,9 @@ class editor:
       self._chord_saved_scroll = None
     self.pending_keys = self._chord_items[idx]
 
-  def open_select_dialog(self,slist,height,subject, callback):
+  def open_select_dialog(self,slist,height,subject, callback, dlist=None):
     self.mode = self.MODE_SELECT_DIALOG
-    self.sd_info = select_dialog_info(slist, height, subject, callback)
+    self.sd_info = select_dialog_info(slist, height, subject, callback, dlist)
     self.h_diff += height
     self.text_height -= height
     self.file.h -= height
@@ -1168,8 +1526,9 @@ class editor:
     if self.file.input_method == self.IM_JP:
       if keys in km.map['ime_jp_toggle']:
         pass
-      elif self.file.im_session and len(self.file.im_session.buffer) == 0 and keys[0] <= 0x20:
-        # Pass through control chars when IM is not active
+      elif self.file.im_session and len(self.file.im_session.buffer) == 0 and (keys[0] <= 0x20 or keys[0] == 0x7f):
+        # Pass through control chars (incl. 0x7f/DEL from PC terminals) when
+        # there's no active pre-edit, so they act as normal editor commands.
         pass
       else:
         last_len = len(self.file.im_session.buffer)
@@ -1179,6 +1538,7 @@ class editor:
         result = self.file.im_session.feed_key(keys)
         if len(result) != 0:
           self.file.rows[self.file_row] = self.file.org_row
+          self.file.undo.record(self, 'other')
           self.file.insert_str(self.file_row, self.file_col, result)
           self.file_col += len(result)
           self.jump_to_position(self.file_row, self.file_col, -1)
@@ -1191,7 +1551,7 @@ class editor:
         if self.file.im_session and len(self.file.im_session.buffer) > 0:
           row = self.file.org_row
           curcol = self.file_col
-          temp_row = erow( row.substr(0,curcol) +  el.set_font_color(4) +  self.file.im_session.d_buffer.encode('utf-8') + el.set_font_color(0) + row.substr(curcol, -1), self.file.tab_size, self.file.w)
+          temp_row = erow( row.substr(0,curcol) +  el.set_font_color(4).encode('utf-8') +  self.file.im_session.d_buffer.encode('utf-8') + el.set_font_color(0).encode('utf-8') + row.substr(curcol, -1), self.file.tab_size, self.file.w)
           self.file.rows[self.file_row] = temp_row
           self.update_scroll_for_curmove(self.file.im_session.col)
           
@@ -1224,7 +1584,10 @@ class editor:
         self.process_open_file(filename.encode('utf-8'), linenum-1, colnum-1)
 
       else:
-        self.open_input_line_dialog("Open file in "+os.getcwd(),"Filename",self.process_open_file)
+        d = self._open_default_dir()
+        self.open_input_line_dialog("Open file in "+d, "Filename",
+                                    self.process_open_file,
+                                    default_str=d.encode('utf-8'))
 
     # C-x k to close file
     if keys in km.map['close']:
@@ -1277,6 +1640,21 @@ class editor:
       pos = self.save_pos()
       self.file.push_pos_history(pos)
       self.set_message("Position marked.")
+    # C-g : cancel / clear an active region mark
+    elif keys == b'\x07':
+      if self.file.mark_row is not None:
+        self.file.mark_row = None
+        self.dmod = True
+        self.set_message("Mark cleared")
+    # C-Space : set region mark
+    elif keys in km.map['set_mark']:
+      self.set_mark()
+    # C-w : cut region to kill ring
+    elif keys in km.map['kill_region']:
+      self.kill_region()
+    # M-w : copy region to kill ring
+    elif keys in km.map['copy_region']:
+      self.copy_region()
     # Escape + ' (Position hisoty walk forward)
     elif keys in km.map['walk_forward']:
       pos = self.file.walk_pos_history(1)
@@ -1330,14 +1708,16 @@ class editor:
             #self.set_message('Link not found')
             print(e)
         
-      elif sym and self.file.mode == 'py':
+      elif sym and self.file.mode in ('py', 'c'):
         pos = self.save_pos()
         self.file.push_pos_history(pos)
         self.mode = self.MODE_SEARCH
         self.search_info.start_search( (self.scroll_row, self.scroll_col, self.file_row, self.file_col),1)
         self.search_info.query_str = sym
         if keys in km.map['ref_def']:
-          self.search_info.query_str = "def " + sym
+          # "def " prefix is Python-only; for C just jump to the symbol from top.
+          if self.file.mode == 'py':
+            self.search_info.query_str = "def " + sym
           self.file_row = 0
           self.file_col = 0
 
@@ -1366,7 +1746,7 @@ class editor:
     #Ctrl-a (Move to the start of the line)
     elif keys in km.map['top_line']:
       # Stop at indent first
-      if self.file.mode == "py":
+      if self.file.mode in ("py", "c"):
         pos = self.file.get_indent(self.file_row)
         if pos != -1 and pos < self.file_col:
           self.file_col = pos
@@ -1389,13 +1769,23 @@ class editor:
     elif keys in km.map['kill']:
       if not self.adding_yank:
         self.yankbuf.reset_buf()
+      self.file.undo.record(self, 'other')
       self.file.erase_to_the_end(self.file_row, self.file_col, self.yankbuf)
       self.adding_yank = True
 
     #Ctrl-y (Yank)
     elif keys in km.map['yank']:
+      self.file.undo.record(self, 'other')
       self.file_row, self.file_col = self.file.yank(self.file_row, self.file_col, self.yankbuf)
       self.jump_to_position(self.file_row, self.file_col, -1)
+
+    # Undo / Redo
+    elif keys in km.map['undo']:
+      if not self.file.undo.undo_one(self):
+        self.set_message("Nothing to undo")
+    elif keys in km.map['redo']:
+      if not self.file.undo.redo_one(self):
+        self.set_message("Nothing to redo")
 
     elif keys in km.map['redraw']:
       #print("center")
@@ -1421,8 +1811,11 @@ class editor:
 
     # Input method toggle
     elif keys in km.map['ime_jp_toggle']:
-      if self.file.input_method == self.IM_EN:
-        auto_connect.check(self.v, silent = True)
+      if jp_input is None:
+        self.set_message("Japanese input unavailable")
+      elif self.file.input_method == self.IM_EN:
+        if auto_connect is not None:
+          auto_connect.check(self.v, silent = True)
         self.file.input_method = self.IM_JP
         if not self.jpfont_loaded:
           self.load_jpfont()
@@ -1441,16 +1834,19 @@ class editor:
       if not self.adding_yank:
         self.yankbuf.reset_buf()
       self.adding_yank = True
+      self.file.undo.record(self, 'delete')
       self.file_row, self.file_col = self.file.delete_one_char_del(self.file_row, self.file_col, self.yankbuf)
       self.update_scroll_for_curmove()
 
     # Backspace
-    elif keys in km.map['bs']: 
+    elif keys in km.map['bs']:
+      self.file.undo.record(self, 'delete')
       self.file_row, self.file_col = self.file.delete_one_char_bs(self.file_row, self.file_col)
       self.update_scroll_for_curmove()
-                    
+
     # Enter
     elif keys in km.map['enter']:
+      self.file.undo.record(self, 'insert', 'nl')
       self.file_row, self.file_col = self.file.insert_return(self.file_row, self.file_col)
       self.update_scroll_for_curmove()
     #PageDown
@@ -1491,7 +1887,7 @@ class editor:
     #tab
     elif keys == b'\x09':
       tab_process = True
-      if self.file.mode == "py":
+      if self.file.mode in ("py", "c"):
         indent = self.file.get_indent(self.file_row)
         if indent >= 2 and self.file_col > indent:
           tab_process = False
@@ -1516,7 +1912,8 @@ class editor:
       if tab_process:
         num_space = self.tab_size - self.file.rows[self.file_row].expand(0,self.file_col) % self.tab_size
         if num_space == 0:
-          num_space = self.tab_size        
+          num_space = self.tab_size
+        self.file.undo.record(self, 'other')
         self.file.insert_str(self.file_row, self.file_col, " "*num_space)
         self.cursor_move(0,num_space)
     
@@ -1533,6 +1930,7 @@ class editor:
           return 0
 
       if int(keys[0]) >= 0x20:
+        self.file.undo.record(self, 'insert', _edit_class(keys))
         self.file.insert_str(self.file_row, self.file_col, keys)
         mresult = self.match_parenthesis(self.file_row,self.file_col)
         if mresult:
@@ -1557,12 +1955,126 @@ class editor:
   def recall_pos(self, pos):
     self.scroll_row, self.scroll_col, self.file_row, self.file_col = pos
 
+def _edit_class(keys):
+  # Classify a typed key for word/line undo granularity.
+  c = keys[0]
+  if c == 0x0d or c == 0x0a:
+    return 'nl'
+  if (48 <= c <= 57) or (65 <= c <= 90) or (97 <= c <= 122) or c == 95 or c >= 0x80:
+    return 'word'
+  return 'sep'
+
+class undo_history:
+  # Snapshot-based undo/redo with word/line coalescing. erow.chars is
+  # copy-on-write (every edit reassigns it, never mutates in place), so a
+  # snapshot can store line references cheaply and unchanged lines are shared
+  # across snapshots.
+  def __init__(self, limit=40):
+    self.limit = limit
+    self.undo = []
+    self.redo = []
+    self.last_kind = None
+    self.last_class = None
+    self.exp_row = -1
+    self.exp_col = -1
+
+  def _snap(self, ed):
+    return ([r.chars for r in ed.file.rows],
+            ed.file_row, ed.file_col, ed.scroll_row, ed.scroll_col)
+
+  def _restore(self, ed, snap):
+    rows, fr, fc, sr, sc = snap
+    newrows = []
+    for cb in rows:
+      row = erow(bytearray(cb), ed.file.tab_size, ed.file.w)
+      row.hl_mode = ed.file.mode
+      newrows.append(row)
+    ed.file.rows = newrows
+    ed.file.num_updated = 0
+    ed.file_row, ed.file_col = fr, fc
+    ed.scroll_row, ed.scroll_col = sr, sc
+    ed.dmod = True
+
+  def record(self, ed, kind, cclass=None):
+    # Call BEFORE a mutation. Start a new undo group (push a snapshot of the
+    # pre-edit state) or coalesce with the current one for word/line granularity.
+    brk = (not self.undo) or kind != self.last_kind or kind == 'other'
+    if not brk:
+      if kind == 'insert':
+        if cclass == 'nl' or self.last_class == 'nl':
+          brk = True
+        elif self.last_class == 'sep' and cclass == 'word':
+          brk = True   # start of a new word
+        elif ed.file_row != self.exp_row or ed.file_col != self.exp_col:
+          brk = True   # caret jumped -> discontinuous edit
+      elif kind == 'delete':
+        if ed.file_row != self.exp_row:
+          brk = True
+    if brk:
+      self.undo.append(self._snap(ed))
+      if len(self.undo) > self.limit:
+        self.undo.pop(0)
+      self.redo = []
+    self.last_kind = kind
+    self.last_class = cclass
+    # Predict the caret after this edit so the next one can test contiguity.
+    if kind == 'insert' and cclass != 'nl':
+      self.exp_row, self.exp_col = ed.file_row, ed.file_col + 1
+    elif kind == 'delete':
+      self.exp_row, self.exp_col = ed.file_row, ed.file_col
+    else:
+      self.exp_row, self.exp_col = -1, -1
+
+  def _reset_group(self):
+    self.last_kind = None
+    self.last_class = None
+    self.exp_row = -1
+    self.exp_col = -1
+
+  def undo_one(self, ed):
+    if not self.undo:
+      return False
+    self.redo.append(self._snap(ed))
+    self._restore(ed, self.undo.pop())
+    self._reset_group()
+    return True
+
+  def redo_one(self, ed):
+    if not self.redo:
+      return False
+    self.undo.append(self._snap(ed))
+    self._restore(ed, self.redo.pop())
+    self._reset_group()
+    return True
+
 class select_dialog_info:
-  def __init__(self, slist, height, subject, callback):
+  def __init__(self, slist, height, subject, callback, dlist=None):
     self.slist = slist
+    # What to show for each entry. Defaults to slist; pass dlist to show a short
+    # label (e.g. basename) while the callback still receives the full slist[i].
+    self.dlist = dlist if dlist is not None else slist
     self.subject = subject
     self.height = height
     self.callback = callback
+    self.cur = 0
+    self.scroll = 0
+    # Incremental search (emacs-style): typing filters the list. `query` is the
+    # typed text; `filtered` holds the indices into slist that currently match.
+    self.query = ''
+    self.filtered = list(range(len(slist)))
+
+  def apply_filter(self):
+    q = self.query.lower()
+    if not q:
+      self.filtered = list(range(len(self.slist)))
+    else:
+      out = []
+      for i, item in enumerate(self.slist):
+        # Match the basename only -- ignore any directory part of the path.
+        # _basename() also handles directory entries' trailing '/' marker.
+        if q in _basename(item).lower():
+          out.append(i)
+      self.filtered = out
     self.cur = 0
     self.scroll = 0
 
@@ -1572,7 +2084,7 @@ class input_line_info:
     self.callback = callback
     self.header = header
     self.line = erow(default_str, 2) # dummy tab_size
-    self.cur = 0
+    self.cur = self.line.get_len()   # start the caret after any prefilled text
 
 class search_info:
   def __init__(self):
@@ -1609,6 +2121,9 @@ class editor_file:
     self.pos_history = []
     self.phistory_cur = 0
     self.saved_pos = None
+    self.undo = undo_history(40)   # per-buffer undo/redo
+    self.mark_row = None           # region mark (set by C-Space), per-buffer
+    self.mark_col = 0
     self.h = h
     self.w = w
     self.modified = False
@@ -1623,11 +2138,17 @@ class editor_file:
     self.num_updated = 0
     self.period_regex = {}
     self.period_regex['py'] = re.compile("([A-Za-z0-9_]+)")
+    self.period_regex['c'] = re.compile("([A-Za-z0-9_]+)")
     self.period_regex['md'] = re.compile("([A-Za-z0-9_\ \/\.']+)")
-    if self.filename != None and self.filename[-3:] == ".md":
-      self.mode = "md"
-    elif self.filename != None and self.filename[-3:] == ".py":
-      self.mode = "py"
+    fn = self.filename
+    if fn != None:
+      if fn.endswith(".md"):
+        self.mode = "md"
+      elif fn.endswith(".py"):
+        self.mode = "py"
+      elif fn.endswith(".c") or fn.endswith(".h") or fn.endswith(".cpp") \
+           or fn.endswith(".cc") or fn.endswith(".hpp"):
+        self.mode = "c"
     if file_exists(filename):
       if pdeck_enabled:
         pdeck.shared_filelist(filename)
@@ -1702,13 +2223,12 @@ class editor_file:
     if resume_last_file:
       if self.filename == None:
         return
-      with open('/config/pem_filelist.txt', "wb") as f:
-        try:
-          f.write(self.filename)
-          f.write(',' + str(row) + ',' + str(col))
-          f.write('\n')
-        except Exception as e:
-          print(e)
+      try:
+        with open(PEM_FILELIST, "wb") as f:
+          payload = "{},{},{}\n".format(self.filename, row, col)
+          f.write(payload.encode('utf-8'))
+      except Exception as e:
+        print(e)
 
   def save(self):
     if self.filename == None:
@@ -1718,10 +2238,11 @@ class editor_file:
       with open(self.filename, "wb") as f:
         for row in self.rows:
           f.write(row.chars)
-          f.write("\n")
+          f.write(b"\n")
           total_bytes += len(row.chars) + 1
       self.modified = False
-      os.sync()
+      if hasattr(os, 'sync'):  # POSIX/MicroPython only; absent on Windows
+        os.sync()
     except:
       return 0
     return total_bytes
@@ -1754,21 +2275,41 @@ class editor_file:
     #print(lnl)
     return lnl
 
+  def _wrap_prev_start(self, row, col):
+    # Char position where the wrapped segment ending at `col` begins. Boundaries
+    # are walked forward (same as get_next_line_num_list) because forward
+    # wrapping is the source of truth: a 2-column wide char that would straddle
+    # the right edge is pushed to the next line, making a segment only w-1 wide.
+    # Stepping backward by a fixed w mis-handles that case.
+    cur = 0
+    nxt = row.expanded_to_pos(cur, self.w)
+    while nxt < col and nxt > cur:
+      cur = nxt
+      nxt = row.expanded_to_pos(cur, self.w)
+    return cur
+
+  def _wrap_last_start(self, row):
+    # Char position where the final wrapped segment of `row` begins.
+    rlen = row.get_len()
+    cur = 0
+    nxt = row.expanded_to_pos(cur, self.w)
+    while nxt < rlen and nxt > cur:
+      cur = nxt
+      nxt = row.expanded_to_pos(cur, self.w)
+    return cur
+
   def get_prev_line_num_list(self, lnl):
     top_ln = lnl[0]
     toprow = self.rows[top_ln[1]]
     if top_ln[2] > 0:
-      next_stop = toprow.expanded_to_pos(top_ln[2], -self.w)
+      next_stop = self._wrap_prev_start(toprow, top_ln[2])
       return ( top_ln[0] - 1, top_ln[1], next_stop)
     else:
       if top_ln[1] == 0:
         return None
       file_row = top_ln[1] - 1
       nextrow = self.rows[file_row]
-      elen = nextrow.cpos_to_dpos(-1) #nextrow.ex_len -1
-      elen = 0 if elen < 0 else elen
-      file_col = nextrow.dpos_to_cpos((elen // self.w) * self.w)
-      #print(f"here {nextrow.ex_len}")
+      file_col = self._wrap_last_start(nextrow)
       return (top_ln[0] - 1, file_row, file_col)
 
   def get_next_line_num_list(self, lnl):
@@ -1801,14 +2342,72 @@ class editor_file:
     return str
 
 
+  def _selection_region(self, currow, curcol):
+    # Ordered, clamped region (mark .. point), or None if no mark is set.
+    if self.mark_row is None:
+      return None
+    mr = self.mark_row
+    if mr >= len(self.rows):
+      mr = len(self.rows) - 1
+    mc = self.mark_col
+    mlen = self.rows[mr].get_len()
+    if mc > mlen:
+      mc = mlen
+    m = (mr, mc)
+    p = (currow, curcol)
+    return (m, p) if m <= p else (p, m)
+
+  def _seg_sel(self, frow, seg_start, seg_end, region):
+    # Selected char range [a,b) within a wrapped segment, or None.
+    if region is None:
+      return None
+    (r1, c1), (r2, c2) = region
+    if frow < r1 or frow > r2:
+      return None
+    ls = c1 if frow == r1 else 0
+    le = c2 if frow == r2 else seg_end   # interior lines select to segment end
+    a = ls if ls > seg_start else seg_start
+    b = le if le < seg_end else seg_end
+    if a >= b:
+      return None
+    return (a, b)
+
+  def _render_sel_segment(self, row, seg_start, seg_end, sel):
+    # Build the segment bytes with the selected range in reverse video.
+    a, b = sel
+    inv = el.set_font_color(7).encode('utf-8')   # reverse video
+    rst = el.set_font_color(0).encode('utf-8')
+    if not row.tab_detected:
+      out = bytearray(row.substr(seg_start, a))
+      out += inv
+      out += row.substr(a, b)
+      out += rst
+      out += row.substr(b, seg_end)
+      return out
+    # tab line: slice the tab-expanded chars by display position
+    d0 = row.bdmap[row.cbmap[seg_start]]
+    de = d0 + self.w
+    da = row.cpos_to_dpos(a)
+    db = row.cpos_to_dpos(b)
+    da = d0 if da < d0 else (de if da > de else da)
+    db = da if db < da else (de if db > de else db)
+    ex = row.ex_chars
+    out = bytearray(ex[d0:da])
+    out += inv
+    out += ex[da:db]
+    out += rst
+    out += ex[db:de]
+    return out
+
   def file_refresh_screen(self,filerow, filecol, currow, curcol, dry_run = False):
 
     bm.add_bench('refresh_start')
-      
+
     out_buf = bytearray()
     line_count = 0
-    
+
     lnl = self.gen_line_num_list(filerow, filecol,0, self.h - 1)
+    region = self._selection_region(currow, curcol)
     bm.add_bench('num_list')
 
     #print(lnl)
@@ -1827,26 +2426,30 @@ class editor_file:
         # ln[2] is the starting column
         # expos will be the end of the column
         expos, d_pos = row.expanded_to_pos_with_d(ln[2], self.w)
-        out_line = row.substr(ln[2], expos)
-        
-        
-        if row.tab_detected:
-          # Use cached expanded characters and slice them
-          # We need to map ln[2] (file col) and expos (file col end) to expanded col positions
-          # or simply use the fact that d_pos is display position.
-          d_start = row.bdmap[row.cbmap[ln[2]]]
-          out_line = row.ex_chars[d_start : d_start + self.w]
+
+        sel = self._seg_sel(ln[1], ln[2], expos, region)
+        if sel is not None:
+          # Region is active over this segment: reverse-video the selection
+          # (syntax highlighting is skipped on selected segments).
+          out_line = self._render_sel_segment(row, ln[2], expos, sel)
         else:
-          out_line = row.substr(ln[2], expos)
-        
-        if self.mode in ('md', 'py'):
-          #if not row.tab_detected and expos >= len(row.cbmap):
-          if self.input_method != IM_JP and ln[1] != filerow:
-            if not ln[2] in row.hl_bytes:
-              row.hl_bytes[ln[2]] = _hl_line(bytes(row.chars), self.mode)
-            out_line = row.hl_bytes[ln[2]]
+          if row.tab_detected:
+            # Use cached expanded characters and slice them
+            # We need to map ln[2] (file col) and expos (file col end) to expanded col positions
+            # or simply use the fact that d_pos is display position.
+            d_start = row.bdmap[row.cbmap[ln[2]]]
+            out_line = row.ex_chars[d_start : d_start + self.w]
           else:
-            out_line = _hl_line(out_line, self.mode)
+            out_line = row.substr(ln[2], expos)
+
+          if self.mode in ('md', 'py', 'c'):
+            #if not row.tab_detected and expos >= len(row.cbmap):
+            if self.input_method != IM_JP and ln[1] != filerow:
+              if not ln[2] in row.hl_bytes:
+                row.hl_bytes[ln[2]] = _hl_line(bytes(row.chars), self.mode)
+              out_line = row.hl_bytes[ln[2]]
+            else:
+              out_line = _hl_line(out_line, self.mode)
         out_buf.extend(out_line)
         out_buf.extend(el.erase_to_end_of_current_line().encode('utf-8'))
         #print(f"outbuf: {out_line}")
@@ -1944,7 +2547,7 @@ class editor_file:
 
     # Auto indent for Python
     ind = 0
-    if auto_indent and self.mode == "py" and c != 0:
+    if auto_indent and self.mode in ("py", "c") and c != 0:
       ind = self.get_indent(r)
       ind = 0 if ind == -1 else ind
       if self.rows[r].at(c-1) == b":":
@@ -1999,7 +2602,7 @@ class editor_file:
   def get_symbol(self, r,c, search_list = None):
     line = self.rows[r]
     if not search_list:
-      if self.mode == 'py':
+      if self.mode == 'py' or self.mode == 'c':
         search_list = ( b".",b"(",b" ",b"+",b"/",b"-",b"~",b"=",b">",b"<",b"?",b",",b".",b"{",b"}",b"[",b"]",b"|")
       elif self.mode == 'md':
         search_list = ( b"(",b"+",b"-",b"~",b"=",b">",b"<",b"?",b",",b"{",b"}",b"[",b"]",b"|")
@@ -2025,6 +2628,28 @@ class editor_file:
       return (period + 1, result.group(1))
     else:
       return (None, None)
+
+  def extract_region(self, r1, c1, r2, c2):
+    # Text of the region (r1,c1)..(r2,c2), assumed already ordered. Multi-line
+    # joins with '\n', matching how yank() re-inserts.
+    if r1 == r2:
+      return self.rows[r1].substr(c1, c2).decode('utf-8')
+    parts = [self.rows[r1].substr(c1, -1).decode('utf-8')]
+    for r in range(r1 + 1, r2):
+      parts.append(self.rows[r].decode())
+    parts.append(self.rows[r2].substr(0, c2).decode('utf-8'))
+    return "\n".join(parts)
+
+  def delete_region(self, r1, c1, r2, c2):
+    self.modified = True
+    if r1 == r2:
+      self.rows[r1].delete_str(c1, c2 - c1)
+    else:
+      newchars = self.rows[r1].substr(0, c1)
+      newchars.extend(self.rows[r2].substr(c2, -1))
+      self.rows[r1].update_str(newchars)
+      del self.rows[r1 + 1 : r2 + 1]
+    return (r1, c1)
 
   def yank(self, r, c, yankbuf):
     self.modified = True
@@ -2256,7 +2881,7 @@ class erow:
       self.update()
       return
       
-    if self.hl_mode in ('md', 'py'):
+    if self.hl_mode in ('md', 'py', 'c'):
       cur = 0
       while True:     
         next_stop = self.expanded_to_pos(cur, self.w)
@@ -2322,7 +2947,10 @@ class erow:
   def insert_str(self, at, str):
     if not self.updated:
       self.update()
-    if type(str) == str:
+    # `str` shadows the builtin here, so the original `type(str) == str` never
+    # matched; check against bytes/bytearray instead so a real str is encoded.
+    # (MicroPython's bytearray.extend tolerates a str; CPython does not.)
+    if not isinstance(str, (bytes, bytearray)):
       str = str.encode("utf-8")
     #print(self.cbmap)
     newchars = self.substr(0,at)
@@ -2521,13 +3149,43 @@ else:
     def __init__(self, vs):
       self.fd = sys.stdin.fileno()
       self.org_term = termios.tcgetattr(self.fd)
+      # Set True by the editor only while it's idle at top level (no dialog), so
+      # a queued remote-open (from pem_client) can be serviced without clobbering
+      # a dialog or a multi-byte escape sequence.
+      self.allow_remote_open = True
     def poll(self):
       return False
     def print(self, str):
-      sys.stdout.write(str)
-      sys.stdout.flush()
+      # The editor mixes str (escape sequences) and bytes/bytearray (rendered
+      # rows). Go through the binary buffer so both work and UTF-8 is preserved.
+      if isinstance(str, (bytes, bytearray)):
+        sys.stdout.buffer.write(str)
+      else:
+        sys.stdout.buffer.write(str.encode('utf-8'))
+      sys.stdout.buffer.flush()
     def read(self, n):
-      return sys.stdin.read(n).encode('ascii')
+      # Wait for a keypress, but wake periodically so queued remote-open requests
+      # (pushed onto open_pending_list by the pem_client server) get serviced.
+      # Stdin always has priority, so this never interrupts an escape sequence.
+      while True:
+        r, _, _ = select.select([self.fd], [], [],
+                                0 if (open_pending_list and self.allow_remote_open) else 0.2)
+        if r:
+          break
+        if open_pending_list and self.allow_remote_open:
+          return km.map['open'][0]   # synthesize C-x C-f to drain the queue
+      b = os.read(self.fd, 1)
+      # Assemble a full UTF-8 character (e.g. Japanese via the OS IME); the
+      # continuation bytes are already available on the fd.
+      if b and b[0] >= 0xc0:
+        need = 3 if b[0] >= 0xf0 else 2 if b[0] >= 0xe0 else 1
+        while need > 0:
+          more = os.read(self.fd, need)
+          if not more:
+            break
+          b += more
+          need -= len(more)
+      return b
 
     def get_terminal_size(self):
       import os
@@ -2549,9 +3207,55 @@ else:
         termios.tcsetattr(self.fd,termios.TCSANOW, new)
       return
 
+def _start_open_server():
+  # PC only: listen on a local TCP port so `pem_client FILE` can open files in
+  # this already-running instance (emacs-server style). The first pem to bind
+  # the port becomes the server; later instances just skip it. Requests are
+  # pushed onto open_pending_list, which the open-file handler already drains.
+  import socket
+  import threading
+
+  port = int(os.environ.get('PEM_SERVER_PORT', '51737'))
+  try:
+    srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    srv.bind(('127.0.0.1', port))
+    srv.listen(5)
+  except OSError:
+    return None  # port already taken -> another instance is the server
+
+  def serve():
+    while True:
+      try:
+        conn, _ = srv.accept()
+        data = b''
+        while b'\n' not in data and len(data) < 4096:
+          chunk = conn.recv(512)
+          if not chunk:
+            break
+          data += chunk
+        conn.close()
+      except OSError:
+        continue
+      line = data.split(b'\n', 1)[0].decode('utf-8', 'replace').strip()
+      if not line:
+        continue
+      # Wire format: "PATH\tLINE\tCOL" (line/col 1-based, optional).
+      parts = line.split('\t')
+      ln = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 1
+      col = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 1
+      open_pending_list.append((parts[0], ln, col))
+
+  t = threading.Thread(target=serve)
+  t.daemon = True
+  t.start()
+  return srv
+
 def main(vs, args_in):
   # Get a virtual screen (No argument = current)
   v = screen_interface(vs)
+  if not pdeck_enabled:
+    _start_open_server()
   parser = argparse.ArgumentParser( description = "pem")
   parser.add_argument('-j','--japanese', action='store_true',help='Set Japansese font at launching') 
   parser.add_argument('-n','--new-file', action='store_true',help='Do not open the last edited file') 
@@ -2575,8 +3279,8 @@ def main(vs, args_in):
     resume_last_file=km.resume_last_file
 
   if resume_last_file and filename == None:
-    if file_exists('/config/pem_filelist.txt'):
-      with open('/config/pem_filelist.txt', "r") as f:
+    if file_exists(PEM_FILELIST):
+      with open(PEM_FILELIST, "r") as f:
         first_line = f.read().split('\n')[0]
         if ',' in first_line:
           filename, linenum, colnum = first_line.split(',')
@@ -2594,6 +3298,9 @@ def main(vs, args_in):
     e.open(filename, linenum, colnum)
     e.refresh_screen()
     while True:
+      # Only service remote-open requests while idle at top level, so they don't
+      # disrupt an open dialog / search / IME pre-edit.
+      v.allow_remote_open = (e.mode == e.MODE_NORMAL)
       ret = e.process_key()
       if ret == 1:
         break

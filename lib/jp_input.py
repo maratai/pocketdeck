@@ -109,7 +109,7 @@ class input_session:
     
   def feed_key(self, keys):
     result = ''
-    if keys == b'\x08':
+    if keys in (b'\x08', b'\x7f'):  # 0x08 device keyboard, 0x7f/DEL PC terminals
       if self.mode == self.MODE_HIRAGANA:
         self.input = self.input[:-1]
       if self.mode == self.MODE_HENKAN:

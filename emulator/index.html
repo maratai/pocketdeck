@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+  <title>Pocket Deck Emulator</title>
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,200..800;1,6..72,200..800&family=Work+Sans:wght@300;400;500;600&family=Space+Grotesk:wght@300;400;500;700&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script src="./fonts/t0_15_me.js"></script>
+  <script src="./fonts/t0_15b_me.js"></script>
+  <script src="./fonts/u8g2font.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: { extend: {
+        colors: {
+          "on-surface": "#383831", "primary": "#5f5e5e", "on-primary": "#faf7f6",
+          "primary-container": "#e5e2e1", "surface": "#fffcf7",
+          "surface-container": "#f6f4ec", "surface-container-high": "#f0eee5",
+          "surface-container-highest": "#eae8de", "surface-container-low": "#fcf9f3",
+          "on-surface-variant": "#65655c", "outline": "#818178",
+          "outline-variant": "#babab0", "secondary": "#4f6966",
+          "secondary-container": "#cbe8e3", "on-secondary-container": "#3c5753",
+          "on-secondary": "#ffffff", "success": "#34C759", "error": "#FF3B30",
+        },
+        fontFamily: { headline: ["Newsreader"], body: ["Work Sans"], label: ["Space Grotesk"] },
+        borderRadius: { DEFAULT: "0.125rem", lg: "0.25rem", xl: "0.5rem",
+          full: "9999px", ios: "10px", "ios-lg": "14px" },
+      }},
+    };
+  </script>
+  <style>
+    .material-symbols-outlined { font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24; }
+    body { background:#f2f2f7; color:#383831; -webkit-tap-highlight-color:transparent; }
+    /* The screen is a real 400×240 monochrome framebuffer scaled up crisply. */
+    #screenCanvas { width:100%; height:auto; image-rendering:pixelated; display:block; background:#000; }
+    #screen-area { position:relative; }
+    .ios-list-item { padding:12px 16px; display:flex; align-items:center;
+      justify-content:space-between; border-bottom:.5px solid rgba(0,0,0,.1); }
+    .ios-list-item:last-child { border-bottom:none; }
+    .btn-key { background:#e0e0e0; border-radius:8px; font-size:11px; font-weight:600;
+      display:flex; align-items:center; justify-content:center;
+      cursor:pointer; user-select:none; -webkit-tap-highlight-color:transparent;
+      transition:background .1s, transform .08s; }
+    .btn-key:active, .btn-key.pressed { background:#3a3a3c; color:#fff; transform:scale(.90); }
+    #loading-overlay { display:none; }
+    #loading-overlay.show { display:flex; }
+  </style>
+</head>
+<body class="font-body min-h-screen">
+
+<main class="pb-32 max-w-[600px] mx-auto">
+
+  <div class="px-4 pt-6 pb-2">
+    <h1 class="font-headline text-[34px] font-extrabold tracking-tight text-on-surface">
+      Pocket Deck <span class="font-normal opacity-60">Emulator</span>
+    </h1>
+    <p class="font-body text-[14px] text-on-surface-variant mt-1">
+      Try Pocket deck Home app and PEM editor.
+    </p>
+  </div>
+
+  <!-- Screen: one 400×240 monochrome framebuffer for both CLI and GUI -->
+  <section class="px-4 mt-4">
+    <div class="bg-on-surface p-2 rounded-ios-lg shadow-sm">
+      <div id="screen-area" class="aspect-[5/3] bg-black rounded-ios relative overflow-hidden">
+        <canvas id="screenCanvas" width="400" height="240"></canvas>
+        <div id="loading-overlay"
+             class="absolute inset-0 flex-col items-center justify-center bg-black/80 text-white gap-3">
+          <div class="w-7 h-7 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+          <p id="loading-text" class="font-label text-[10px] uppercase tracking-widest opacity-60">Loading…</p>
+        </div>
+      </div>
+    </div>
+    <div class="flex justify-between items-center px-1 mt-2">
+      <p class="font-label text-[10px] uppercase tracking-widest text-outline">400 × 240 · 1-bit Mono</p>
+      <p class="font-label text-[10px] uppercase tracking-widest text-outline">
+        <span id="status-dot" class="inline-block w-2 h-2 rounded-full bg-outline mr-1 align-middle"></span>
+        <span id="status-text">Idle</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- Device controls -->
+  <section class="px-4 mt-5">
+    <p class="font-label text-[9px] uppercase tracking-widest text-outline mb-2">Controls</p>
+    <div class="flex items-start gap-4">
+      <div class="grid gap-1" style="grid-template-columns:repeat(3,36px);grid-template-rows:repeat(3,36px)">
+        <div></div><button class="btn-key" data-key="up">▲</button><div></div>
+        <button class="btn-key" data-key="left">◄</button><div></div>
+        <button class="btn-key" data-key="right">►</button>
+        <div></div><button class="btn-key" data-key="down">▼</button><div></div>
+      </div>
+      <div class="flex flex-wrap gap-2 pt-1">
+        <button class="btn-key w-11 h-11 rounded-full text-[13px]" data-char="&#13;">A</button>
+        <button class="btn-key w-11 h-11 rounded-full text-[13px]" data-char="&#8;">B</button>
+        <button class="btn-key w-12 h-9 text-[10px]" data-key="prev">◁ Prev</button>
+        <button class="btn-key w-12 h-9 text-[10px]" data-key="next">Next ▷</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- App list -->
+  <section class="mt-6">
+    <h3 class="px-8 font-label text-[13px] uppercase tracking-wider text-outline mb-2">Demo Apps</h3>
+    <div class="mx-4 bg-surface rounded-ios-lg border border-black/5 shadow-sm overflow-hidden">
+      <div id="builtin-list"></div>
+      <div class="ios-list-item">
+        <span class="font-body text-[15px]">Load custom .py file</span>
+        <label class="cursor-pointer">
+          <input type="file" id="file-picker" accept=".py" class="hidden"/>
+          <span class="material-symbols-outlined text-outline text-[20px]">upload_file</span>
+        </label>
+      </div>
+    </div>
+  </section>
+
+  <!-- Run / Stop -->
+  <section class="px-4 mt-4 flex gap-3">
+    <button id="run-btn" disabled
+      class="flex-1 bg-on-surface text-surface h-[50px] rounded-full flex items-center justify-center gap-2 disabled:opacity-30 active:opacity-70 transition-opacity">
+      <span class="font-headline font-bold text-[17px]">Run</span>
+      <span class="material-symbols-outlined text-[20px]">play_arrow</span>
+    </button>
+    <button id="stop-btn" disabled
+      class="flex-1 bg-surface-container-high text-on-surface h-[50px] rounded-full flex items-center justify-center gap-2 disabled:opacity-30 active:opacity-70 transition-opacity border border-black/5">
+      <span class="font-headline font-semibold text-[17px]">Stop</span>
+      <span class="material-symbols-outlined text-[20px]">stop</span>
+    </button>
+  </section>
+
+  <!-- Console -->
+  <section class="px-4 mt-6">
+    <div class="flex justify-between items-center mb-2">
+      <p class="font-label text-[9px] uppercase tracking-widest text-outline">Console</p>
+      <button id="clear-console" class="material-symbols-outlined text-outline text-[16px]">delete_sweep</button>
+    </div>
+    <div id="console-out"
+         class="bg-[#1a1a1a] rounded-ios p-3 text-[11px] text-green-400 overflow-y-auto"
+         style="max-height:110px;font-family:'Courier New',monospace"></div>
+  </section>
+
+</main>
+
+<script>
+// ════════════════════════════════════════════════════════════════════════════
+//  Cross-Origin Isolation (enables SharedArrayBuffer)
+// ════════════════════════════════════════════════════════════════════════════
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./coi-serviceworker.js').then(() => {
+    if (!navigator.serviceWorker.controller && !sessionStorage.getItem('coi-reloaded')) {
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        sessionStorage.setItem('coi-reloaded', '1');
+        window.location.reload();
+      });
+    }
+  });
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  Display — one 400×240 monochrome framebuffer for both CLI and GUI.
+//  Everything is drawn in grayscale into an offscreen buffer, then converted to
+//  pure black & white with a 4×4 ordered (Bayer) dither on present().
+// ════════════════════════════════════════════════════════════════════════════
+const W = 400, H = 240;
+const screenCanvas = document.getElementById('screenCanvas');
+const sctx = screenCanvas.getContext('2d');
+
+// Two offscreen layers, matching the device's two render paths:
+//   gctx  — shapes/fills, drawn in grayscale → ordered-dithered to 1-bit
+//   tctx  — text, drawn solid (1-bit, no dither) → composited crisply on top
+const gbuf = document.createElement('canvas'); gbuf.width = W; gbuf.height = H;
+const gctx = gbuf.getContext('2d', { willReadFrequently: true });
+const tbuf = document.createElement('canvas'); tbuf.width = W; tbuf.height = H;
+const tctx = tbuf.getContext('2d', { willReadFrequently: true });
+
+const outImg = sctx.createImageData(W, H);
+const outBuf = outImg.data;
+
+// 4×4 Bayer threshold matrix (values 0..15)
+const BAYER = [0,8,2,10, 12,4,14,6, 3,11,1,9, 15,7,13,5];
+
+// ── Screen palette ──  Change these two lines to recolor the whole screen.
+//   LCD_ON  = lit pixels (device draw_color 1)
+//   LCD_OFF = background (device draw_color 0)
+// Presets (uncomment one):
+//   netserver white/black : [255,255,255] / [0,0,0]
+//   backlit blue LCD      : [207,232,255] / [10,22,34]
+//   green phosphor LCD    : [183,227,176] / [13,22,12]
+  //   reflective gray LCD   : [26,31,26]    / [174,185,165]
+  const LCD_ON  = [174,185,165]   // lit pixel
+  const LCD_OFF = [26,31,26];      // background
+
+let displayInverted = true;   // pdeck.screen_invert()
+
+function present() {
+  const fill = gctx.getImageData(0, 0, W, H).data;
+  const text = tctx.getImageData(0, 0, W, H).data;
+  for (let y = 0; y < H; y++) {
+    const brow = (y & 3) * 4;
+    for (let x = 0; x < W; x++) {
+      const i = (y * W + x) * 4;
+      let lit;
+      if (text[i+3] > 127) {
+        // Text pixel: solid 1-bit, crisp (no dithering)
+        lit = text[i] >= 128;
+      } else {
+        // Fill pixel: ordered dither of the grayscale value
+        const lum = (fill[i]*0.299 + fill[i+1]*0.587 + fill[i+2]*0.114) * (fill[i+3]/255);
+        lit = lum >= (BAYER[brow + (x & 3)] + 0.5) * 16;
+      }
+      if (displayInverted) lit = !lit;
+      const c = lit ? LCD_ON : LCD_OFF;
+      outBuf[i] = c[0]; outBuf[i+1] = c[1]; outBuf[i+2] = c[2]; outBuf[i+3] = 255;
+    }
+  }
+  sctx.putImageData(outImg, 0, 0);
+}
+
+function clearGray() {
+  gctx.globalCompositeOperation = 'source-over';
+  gctx.fillStyle = '#000000';
+  gctx.fillRect(0, 0, W, H);
+  tctx.clearRect(0, 0, W, H);   // text layer transparent where there is no glyph
+}
+
+// ── Graphics renderer (replays draw-command batches into the gray buffer) ─────
+// u8g2's default text reference is the BASELINE (draw_str y = baseline), so the
+// canvas default must be 'alphabetic', not 'top'.
+const DEFAULT_FONT = '12px "Courier New",monospace';
+let curColor = 1, curDither = 16, curFont = DEFAULT_FONT, curBaseline = 'alphabetic';
+function resetRenderState() {
+  curColor = 1; curDither = 16; curFont = DEFAULT_FONT; curBaseline = 'alphabetic';
+}
+function fg() {
+  if (curDither === 0) return 'rgba(0,0,0,0)';
+  const a = curDither / 16;
+  if (curColor === 1) return a < 1 ? `rgba(255,255,255,${a})` : '#ffffff';
+  return a < 1 ? `rgba(0,0,0,${a})` : '#000000';
+}
+function renderFrame(cmds) {
+  clearGray();
+  const ctx = gctx;
+  for (const c of cmds) {
+    switch (c[0]) {
+      case 'col':   curColor = c[1];
+        ctx.globalCompositeOperation = (c[1] === 2) ? 'xor' : 'source-over'; break;
+      case 'dith':  curDither = c[1]; break;
+      case 'font':  curFont = c[1]; break;
+      case 'base':  curBaseline = c[1]; break;
+      case 'box':   ctx.fillStyle = fg(); ctx.fillRect(c[1], c[2], c[3], c[4]); break;
+      case 'frame': ctx.strokeStyle = fg(); ctx.lineWidth = 1;
+                    ctx.strokeRect(c[1]+0.5, c[2]+0.5, c[3]-1, c[4]-1); break;
+      case 'line':  ctx.strokeStyle = fg(); ctx.lineWidth = 1; ctx.beginPath();
+                    ctx.moveTo(c[1], c[2]); ctx.lineTo(c[3], c[4]); ctx.stroke(); break;
+      case 'rbox':  rrect(c[1], c[2], c[3], c[4], c[5], true); break;
+      case 'rframe':rrect(c[1], c[2], c[3], c[4], c[5], false); break;
+      case 'circ':  ctx.strokeStyle = fg(); ctx.lineWidth = 1; ctx.beginPath();
+                    ctx.arc(c[1], c[2], c[3], 0, 2*Math.PI); ctx.stroke(); break;
+      case 'disc':  ctx.fillStyle = fg(); ctx.beginPath();
+                    ctx.arc(c[1], c[2], c[3], 0, 2*Math.PI); ctx.fill(); break;
+      case 'arc':   ctx.strokeStyle = fg(); ctx.lineWidth = 1; ctx.beginPath();
+                    ctx.arc(c[1], c[2], c[3], c[4]*Math.PI/180, c[5]*Math.PI/180); ctx.stroke(); break;
+      case 'tri':   ctx.fillStyle = fg(); ctx.beginPath();
+                    ctx.moveTo(c[1],c[2]); ctx.lineTo(c[3],c[4]); ctx.lineTo(c[5],c[6]);
+                    ctx.closePath(); ctx.fill(); break;
+      case 'ell':   ctx.beginPath(); ctx.ellipse(c[1],c[2],c[3],c[4],0,0,2*Math.PI);
+                    if (c[5]) { ctx.fillStyle = fg(); ctx.fill(); }
+                    else { ctx.strokeStyle = fg(); ctx.lineWidth = 1; ctx.stroke(); } break;
+      case 'poly':  drawPoly(c[1]); break;
+      case 'str':   tctx.font = curFont; tctx.textBaseline = curBaseline;
+                    tctx.fillStyle = curColor === 0 ? '#000000' : '#ffffff';
+                    tctx.fillText(c[3], c[1], c[2]); break;
+      case 'vstr':  tctx.save(); tctx.translate(c[1], c[2]); tctx.rotate(Math.PI/2);
+                    tctx.font = curFont; tctx.textBaseline = curBaseline;
+                    tctx.fillStyle = curColor === 0 ? '#000000' : '#ffffff';
+                    tctx.fillText(c[3], 0, 0); tctx.restore(); break;
+      case 'faces': drawFaces(c[1]); break;
+      case 'xbm':   drawXbm(c[1], c[2], c[3], c[4], c[5]); break;
+    }
+  }
+  present();
+}
+function rrect(x, y, w, h, r, fill) {
+  r = Math.min(r, w/2, h/2);
+  gctx.beginPath();
+  gctx.moveTo(x+r, y); gctx.arcTo(x+w, y, x+w, y+h, r);
+  gctx.arcTo(x+w, y+h, x, y+h, r); gctx.arcTo(x, y+h, x, y, r);
+  gctx.arcTo(x, y, x+w, y, r); gctx.closePath();
+  if (fill) { gctx.fillStyle = fg(); gctx.fill(); }
+  else { gctx.strokeStyle = fg(); gctx.lineWidth = 1; gctx.stroke(); }
+}
+function drawPoly(pts) {
+  const n = pts.length / 2;
+  gctx.beginPath(); gctx.moveTo(pts[0], pts[n]);
+  for (let i = 1; i < n; i++) gctx.lineTo(pts[i], pts[n+i]);
+  gctx.closePath(); gctx.fillStyle = fg(); gctx.fill();
+}
+function drawFaces(faces) {
+  for (const f of faces) {
+    gctx.beginPath();
+    gctx.moveTo(f[1], f[4]); gctx.lineTo(f[2], f[5]); gctx.lineTo(f[3], f[6]);
+    gctx.closePath();
+    gctx.fillStyle = `rgba(255,255,255,${f[0]/16})`; gctx.fill();
+  }
+}
+function drawXbm(x, y, w, h, bytes) {
+  const stride = (w + 7) >> 3;
+  const img = gctx.createImageData(w, h), d = img.data;
+  for (let row = 0; row < h; row++)
+    for (let col = 0; col < w; col++) {
+      const bit = (bytes[row*stride + (col>>3)] >> (7 - (col & 7))) & 1;
+      const v = bit ? 255 : 0, i = (row*w + col)*4;
+      d[i] = d[i+1] = d[i+2] = v; d[i+3] = 255;
+    }
+  gctx.putImageData(img, x, y);
+}
+
+// ── Monochrome terminal (CLI rendered with the device's u8g2 t0_15_me font) ──
+// Matches displayapi.c display_set_font_size(0): t0_15_me, 8×16 cell → 50×15.
+const sysFont  = new U8g2Font(window.U8G2_T0_15_ME);
+const boldFont = new U8g2Font(window.U8G2_T0_15B_ME);
+const CW = 8, CH = 16, COLS = Math.floor(W / CW), ROWS = Math.floor(H / CH); // 50 × 15
+const ATTR_BOLD = 1, ATTR_REVERSE = 2;   // per-cell attribute bits
+class MonoTerminal {
+  constructor() {
+    this.cells = new Array(COLS * ROWS).fill(' ');
+    this.attrs = new Uint8Array(COLS * ROWS);
+    this.cx = 0; this.cy = 0;
+    this.cursorVisible = true;
+    this.curAttr = 0;        // SGR state applied to newly written cells
+    this.esc = '';           // pending escape-sequence buffer
+  }
+  reset() { this.cells.fill(' '); this.attrs.fill(0); this.cx = 0; this.cy = 0; this.curAttr = 0; }
+  _scroll() {
+    this.cells.copyWithin(0, COLS, COLS * ROWS);
+    this.cells.fill(' ', COLS * (ROWS - 1));
+    this.attrs.copyWithin(0, COLS, COLS * ROWS);
+    this.attrs.fill(0, COLS * (ROWS - 1));
+  }
+  _nl() { this.cx = 0; this.cy++; if (this.cy >= ROWS) { this.cy = ROWS - 1; this._scroll(); } }
+  _put(ch) {
+    if (this.cx >= COLS) this._nl();
+    this.cells[this.cy * COLS + this.cx] = ch;
+    this.attrs[this.cy * COLS + this.cx] = this.curAttr;
+    this.cx++;
+  }
+  write(str) {
+    for (const ch of str) {
+      if (this.esc !== '') { this._escChar(ch); continue; }
+      const code = ch.charCodeAt(0);
+      if (ch === '\x1b') { this.esc = '\x1b'; }
+      else if (ch === '\n') { this._nl(); }
+      else if (ch === '\r') { this.cx = 0; }
+      else if (ch === '\b' || code === 0x7f) { if (this.cx > 0) this.cx--; }
+      else if (ch === '\t') { this.cx = Math.min(COLS - 1, (this.cx + 8) & ~7); }
+      else if (code >= 32) { this._put(ch); }
+    }
+  }
+  _escChar(ch) {
+    this.esc += ch;
+    if (this.esc === '\x1b[') return;       // need more
+    if (this.esc.length === 2 && ch !== '[') { this.esc = ''; return; } // non-CSI: drop
+    // CSI ends on a letter (or ~)
+    if (/[A-Za-z~]/.test(ch)) { this._csi(this.esc); this.esc = ''; }
+    else if (this.esc.length > 32) { this.esc = ''; }
+  }
+  _csi(seq) {
+    const body = seq.slice(2);                       // strip ESC[
+    const priv = body.startsWith('?');
+    const nums = body.replace('?', '').replace(/[A-Za-z~]$/, '');
+    const ps = nums.split(';').map(s => s === '' ? 0 : parseInt(s, 10));
+    const cmd = seq[seq.length - 1];
+    switch (cmd) {
+      case 'H': case 'f':  this.cy = Math.min(ROWS-1, Math.max(0,(ps[0]||1)-1));
+                           this.cx = Math.min(COLS-1, Math.max(0,(ps[1]||1)-1)); break;
+      case 'A': this.cy = Math.max(0, this.cy - (ps[0]||1)); break;
+      case 'B': this.cy = Math.min(ROWS-1, this.cy + (ps[0]||1)); break;
+      case 'C': this.cx = Math.min(COLS-1, this.cx + (ps[0]||1)); break;
+      case 'D': this.cx = Math.max(0, this.cx - (ps[0]||1)); break;
+      case 'J': // erase display (2 = whole screen, also home)
+        if ((ps[0]||0) === 2) { this.cells.fill(' '); this.attrs.fill(0); this.cx = 0; this.cy = 0; } break;
+      case 'K': { // erase line to end
+        for (let x = this.cx; x < COLS; x++) { this.cells[this.cy*COLS + x] = ' '; this.attrs[this.cy*COLS + x] = 0; }
+        break;
+      }
+      case 'h': if (priv && ps[0] === 25) this.cursorVisible = true;  break;
+      case 'l': if (priv && ps[0] === 25) this.cursorVisible = false; break;
+      case 'm': // SGR — track bold + reverse (colors map to gray on the device; ignored here)
+        for (const n of ps) {
+          if (n === 0)       this.curAttr = 0;
+          else if (n === 1)  this.curAttr |= ATTR_BOLD;
+          else if (n === 7)  this.curAttr |= ATTR_REVERSE;
+          else if (n === 22) this.curAttr &= ~ATTR_BOLD;
+          else if (n === 27) this.curAttr &= ~ATTR_REVERSE;
+        }
+        break;
+      // ?5000h/l (display mode), ?1h/l (raw), ?7 (wrap) — no-op on a mono screen
+    }
+  }
+  _fillCell(d, x, y, val) {  // paint a whole cell opaque (val 0 or 255)
+    for (let dy = 0; dy < CH; dy++) {
+      const py = y * CH + dy; if (py >= H) break;
+      for (let dx = 0; dx < CW; dx++) {
+        const i = (py * W + x * CW + dx) * 4;
+        d[i] = d[i+1] = d[i+2] = val; d[i+3] = 255;
+      }
+    }
+  }
+  render() {
+    clearGray();   // clears fill (black) + text (transparent) layers
+    const img = tctx.createImageData(W, H), d = img.data;   // alpha 0 everywhere
+    for (let y = 0; y < ROWS; y++) {
+      const baseY = y * CH + 13;              // baseline within the 16px cell
+      for (let x = 0; x < COLS; x++) {
+        const ch = this.cells[y * COLS + x];
+        const at = this.attrs[y * COLS + x];
+        const reverse = (at & ATTR_REVERSE) !== 0;
+        const font = (at & ATTR_BOLD) ? boldFont : sysFont;
+        if (reverse) {
+          this._fillCell(d, x, y, 255);                              // white background
+          if (ch !== ' ') font.drawGlyph(d, W, H, ch.charCodeAt(0), x*CW, baseY, 0);   // black glyph
+        } else if (ch !== ' ') {
+          font.drawGlyph(d, W, H, ch.charCodeAt(0), x*CW, baseY, 255);                 // white glyph
+        }
+      }
+    }
+    // Cursor: inverse block over the cell (matches device draw_color 2 / XOR block)
+    if (this.cursorVisible) {
+      for (let dy = 0; dy < CH; dy++) {
+        const py = this.cy * CH + dy; if (py >= H) break;
+        for (let dx = 0; dx < CW; dx++) {
+          const i = (py * W + this.cx * CW + dx) * 4;
+          const on = d[i+3] > 127 && d[i] >= 128;   // currently white?
+          const v = on ? 0 : 255;                    // invert
+          d[i] = d[i+1] = d[i+2] = v; d[i+3] = 255;
+        }
+      }
+    }
+    tctx.putImageData(img, 0, 0);
+    present();
+  }
+}
+const terminal = new MonoTerminal();
+window.terminal = terminal;  // for tests
+window.getTerminalText = () => {
+  let out = '';
+  for (let y = 0; y < ROWS; y++)
+    out += terminal.cells.slice(y*COLS, (y+1)*COLS).join('').replace(/\s+$/, '') + '\n';
+  return out;
+};
+
+// ── Mode ──────────────────────────────────────────────────────────────────────
+let graphicsMode = false;
+function setMode(graphics) {
+  graphicsMode = graphics;
+  if (!graphics) termDirty = true;    // repaint terminal when returning to CLI
+}
+
+// Coalesce terminal repaints to one per animation frame. Apps (e.g. PEM) often
+// redraw the screen in several passes per refresh; rendering every write would
+// paint intermediate states and flicker (e.g. a reverse-video bar drawn plain
+// then re-drawn reversed). Painting once per frame shows only the final state.
+let termDirty = false;
+function termLoop() {
+  if (termDirty && !graphicsMode) { terminal.render(); termDirty = false; }
+  requestAnimationFrame(termLoop);
+}
+requestAnimationFrame(termLoop);
+
+// ════════════════════════════════════════════════════════════════════════════
+//  SharedArrayBuffer keyboard channel
+// ════════════════════════════════════════════════════════════════════════════
+const RING = 2048, KSTATE = 256;
+const keySab = new SharedArrayBuffer(64 + RING + KSTATE);
+const kMeta  = new Int32Array(keySab, 0, 16);
+const kData  = new Uint8Array(keySab, 64, RING);
+const kState = new Uint8Array(keySab, 64 + RING, KSTATE);
+const _enc   = new TextEncoder();
+
+function sendKey(str) {
+  if (!str) return;
+  const bytes = _enc.encode(str);
+  let head = Atomics.load(kMeta, 0);
+  for (const b of bytes) { kData[head % RING] = b; head++; }
+  Atomics.store(kMeta, 0, head);
+  Atomics.notify(kMeta, 0);
+}
+function requestStop() { Atomics.store(kMeta, 2, 1); Atomics.notify(kMeta, 0); }
+
+const HID = { 37:0x50, 39:0x4f, 40:0x51, 38:0x52, 13:0x28, 8:0x2a, 32:0x2c, 27:0x29 };
+for (let i = 65; i <= 90; i++) HID[i] = 0x04 + (i - 65);
+function setKeyState(keyCode, down) {
+  const h = HID[keyCode]; if (h !== undefined) kState[h] = down ? 1 : 0;
+}
+function keyToData(e) {
+  const m = { ArrowUp:'\x1b[A', ArrowDown:'\x1b[B', ArrowRight:'\x1b[C', ArrowLeft:'\x1b[D',
+    Backspace:'\x08', Delete:'\x1b[3~', Home:'\x1b[H', End:'\x1b[F',
+    PageUp:'\x1b[5~', PageDown:'\x1b[6~', Tab:'\t', Escape:'\x1b', Enter:'\r' };
+  if (m[e.key]) return m[e.key];
+  // Alt = the emacs "Meta" key: send ESC followed by the key (e.g. Alt+. → ESC .)
+  if (e.altKey && e.key.length === 1) return '\x1b' + e.key;
+  if (e.ctrlKey && e.key.length === 1) {
+    const c = e.key.toLowerCase().charCodeAt(0) - 96;
+    if (c >= 1 && c <= 26) return String.fromCharCode(c);
+  }
+  if (e.key.length === 1) return e.key;
+  return '';
+}
+
+window.addEventListener('keydown', e => {
+  if (!isRunning) return;
+  setKeyState(e.keyCode, true);
+  const d = keyToData(e);
+  if (d) { e.preventDefault(); sendKey(d); }
+});
+window.addEventListener('keyup', e => { if (isRunning) setKeyState(e.keyCode, false); });
+
+const KEY_MAP = { up:'\x1b[A', down:'\x1b[B', left:'\x1b[D', right:'\x1b[C', prev:'\x1b[D', next:'\x1b[C' };
+document.querySelectorAll('.btn-key').forEach(btn => {
+  const go = e => {
+    e.preventDefault(); btn.classList.add('pressed');
+    const seq = btn.dataset.key ? KEY_MAP[btn.dataset.key] : btn.dataset.char;
+    if (seq) sendKey(seq);
+    setTimeout(() => btn.classList.remove('pressed'), 120);
+  };
+  btn.addEventListener('touchstart', go, { passive:false });
+  btn.addEventListener('mousedown',  go);
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+//  Worker orchestration
+// ════════════════════════════════════════════════════════════════════════════
+let worker = null, isRunning = false, selectedApp = null, customCode = null;
+
+const runBtn  = document.getElementById('run-btn');
+const stopBtn = document.getElementById('stop-btn');
+const statusDot  = document.getElementById('status-dot');
+const statusText = document.getElementById('status-text');
+const loadingOverlay = document.getElementById('loading-overlay');
+const consoleOut     = document.getElementById('console-out');
+
+function log(msg, isErr) {
+  const d = document.createElement('div');
+  d.textContent = msg;
+  if (isErr) d.style.color = '#ff453a';
+  consoleOut.appendChild(d);
+  consoleOut.scrollTop = consoleOut.scrollHeight;
+}
+function setStatus(state, txt) {
+  statusText.textContent = txt;
+  statusDot.className = 'inline-block w-2 h-2 rounded-full mr-1 align-middle ' + (
+    state === 'running' ? 'bg-success animate-pulse' :
+    state === 'error'   ? 'bg-red-500' :
+    state === 'loading' ? 'bg-yellow-400 animate-pulse' : 'bg-outline'
+  );
+}
+
+function initWorker() {
+  if (!self.crossOriginIsolated) {
+    setStatus('error', 'Not isolated');
+    log('crossOriginIsolated is false — SharedArrayBuffer unavailable.', true);
+    log('Serve with COOP/COEP headers (server.py / coi-serviceworker). Hard reload.', true);
+    return;
+  }
+  try { worker = new Worker('./worker.js'); }
+  catch(e) { setStatus('error','Worker failed'); log('Open via http:// not file://', true); return; }
+
+  worker.onmessage = e => {
+    const msg = e.data;
+    switch (msg.type) {
+      case 'ready':
+        setStatus('', 'Ready');
+        loadingOverlay.classList.remove('show');
+        terminal.write('Pocket Deck emulator ready.\r\nSelect an app and press Run.\r\n');
+        termDirty = true;
+        populateApps(msg.apps || []);
+        break;
+      case 'terminal':
+        terminal.write(msg.data);
+        if (!graphicsMode) termDirty = true;   // painted by termLoop (coalesced)
+        break;
+      case 'frame':
+        if (graphicsMode) renderFrame(msg.cmds);
+        break;
+      case 'mode':
+        setMode(!!msg.graphics);
+        break;
+      case 'invert':
+        displayInverted = !!msg.value;
+        present();            // re-apply to the current frame immediately
+        termDirty = true;     // and on the next terminal repaint
+        break;
+      case 'done':
+        isRunning = false; runBtn.disabled = false; stopBtn.disabled = true;
+        setStatus('', 'Done'); log('── finished ──');
+        break;
+      case 'error':
+        isRunning = false; runBtn.disabled = false; stopBtn.disabled = true;
+        setStatus('error', 'Error'); log(msg.message, true);
+        setMode(false);
+        terminal.write('\r\nERROR:\r\n' + msg.message + '\r\n');
+        termDirty = true;
+        break;
+      case 'clipboard_copy':
+        navigator.clipboard?.writeText(msg.data).catch(()=>{});
+        break;
+    }
+  };
+  worker.onerror = err => { setStatus('error','Worker error'); log(String(err.message||err), true); };
+
+  setStatus('loading', 'Loading…');
+  loadingOverlay.classList.add('show');
+  worker.postMessage({ type:'init', sab: keySab });
+}
+
+function populateApps(apps) {
+  const list = document.getElementById('builtin-list');
+  list.innerHTML = '';
+  apps.forEach(({ id, label, desc }) => {
+    const item = document.createElement('div');
+    item.className = 'ios-list-item cursor-pointer hover:bg-black/5';
+    item.innerHTML = `
+      <div>
+        <p class="font-body text-[15px]">${label}</p>
+        ${desc ? `<p class="font-label text-[11px] text-on-surface-variant mt-0.5">${desc}</p>` : ''}
+      </div>
+      <span class="material-symbols-outlined text-outline text-[20px]">chevron_right</span>`;
+    item.onclick = () => {
+      document.querySelectorAll('.ios-list-item.selected').forEach(el => el.classList.remove('selected','bg-secondary-container/30'));
+      item.classList.add('selected', 'bg-secondary-container/30');
+      selectedApp = id; customCode = null; runBtn.disabled = false;
+    };
+    list.appendChild(item);
+  });
+}
+
+document.getElementById('file-picker').addEventListener('change', e => {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    customCode = ev.target.result; selectedApp = null;
+    document.querySelectorAll('.ios-list-item.selected').forEach(el => el.classList.remove('selected','bg-secondary-container/30'));
+    log('Loaded: ' + file.name); runBtn.disabled = false;
+  };
+  reader.readAsText(file);
+});
+
+runBtn.addEventListener('click', () => {
+  if (isRunning || !worker) return;
+  terminal.reset(); resetRenderState();  setMode(false);
+  isRunning = true; runBtn.disabled = true; stopBtn.disabled = false;
+  setStatus('running', 'Running…');
+  log('Starting ' + (selectedApp || 'custom app') + '…');
+  worker.postMessage({ type:'run', app:selectedApp, code:customCode, args:[selectedApp||'app'] });
+});
+stopBtn.addEventListener('click', () => { if (isRunning) requestStop(); });
+document.getElementById('clear-console').addEventListener('click', () => { consoleOut.innerHTML = ''; });
+
+// Paint an initial blank screen, then boot the worker.
+clearGray(); present();
+initWorker();
+</script>
+</body>
+</html>

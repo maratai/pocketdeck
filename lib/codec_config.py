@@ -1,4 +1,4 @@
-from machine import Pin,I2C,I2S
+from machine import Pin,I2C
 import math
 import time
 

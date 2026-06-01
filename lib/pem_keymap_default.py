@@ -23,6 +23,9 @@ map = {
   'ime_jp_toggle': [ b'\x1b`',b'\x1b~'],
   'replace': [ b'\x1b%' ],
   'mark': [ b'\x1b\x20' ],
+  'set_mark': [ b'\x00', b'\x1b[E' ],  # C-Space (PC) or ESC[E (device: firmware sends this for Ctrl-Space, no chord-menu flash)
+  'kill_region': [ b'\x17' ],       # C-w : cut region to kill ring
+  'copy_region': [ b'\x1bw' ],      # M-w : copy region to kill ring
   'walk_forward': [ b'\x1b\x27' ],
   'walk_back': [ b'\x1b;' ],
   'goto_line': [ b'\x1bg'],
@@ -34,13 +37,15 @@ map = {
   'top_line': [ b'\x01', b'\x1b[1~'],
   'bottom_line': [ b'\x05', b'\x1b[4~' ],
   'yank': [ b'\x19' ],
+  'undo': [ b'\x1f', b'\x18u' ],   # C-/ (C-_) or C-x u
+  'redo': [ b'\x18r' ],            # C-x r
   'redraw': [ b'\x0c' ],
   'up' : [b'\x1b[A', b'\x10'],
   'down': [b'\x1b[B', b'\x0e'],
   'left': [b'\x1b[D', b'\x02'],
   'right': [b'\x1b[C', b'\x06'],
   'delete': [ b'\x1b[3~', b'\x04'],
-  'bs': [ b'\x08'],
+  'bs': [ b'\x08', b'\x7f'],
   'enter': [ b'\r',b'\x0a'],
   'pagedown': [b'\x1b[6~'],
   'pageup': [b'\x1b[5~'],

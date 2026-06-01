@@ -120,7 +120,8 @@ def _print_group(vs, dirname, filelist, detailed):
     if detailed:
       st = os.stat(_join_path(dirname, item))
       t = time.localtime(st[7]+pu.timezone*15*60)
-      print(f'{i}: {'[Dir]' if st[0]&0x4000 != 0 else ''} {item} {st[6]:,} {month_list[t[1]][:3]} {t[2]}, {t[0]} {t[3]:02}:{t[4]:02}:{t[5]:02}', file=vs)
+      dirmark = '[Dir]' if st[0]&0x4000 != 0 else ''
+      print(f'{i}: {dirmark} {item} {st[6]:,} {month_list[t[1]][:3]} {t[2]}, {t[0]} {t[3]:02}:{t[4]:02}:{t[5]:02}', file=vs)
     else:
       print(f'{item} ', end='', file=vs)
 

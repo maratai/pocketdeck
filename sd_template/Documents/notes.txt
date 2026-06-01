@@ -1,0 +1,5 @@
+Scratch notes
+-------------
+- Pocket Deck is a tiny MicroPython computer.
+- 400x240 monochrome screen.
+- This emulator runs the real device apps in the browser.

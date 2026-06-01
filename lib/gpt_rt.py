@@ -371,6 +371,7 @@ class RealtimeAgent:
     if fill < buf_size:
       self.buffering = True
       self.underrun_count += 1
+      print('underrun')
       if fill > 0:
         end = rpos + fill
         if end <= self._ring_size:
@@ -438,7 +439,7 @@ class RealtimeAgent:
         {
           "type": "function",
           "name": "command_with_return",
-          "description": "Run a text command and return its output. Use to answer questions about files or content. Supported: ls (list files, supports glob patterns like 'word*'), cat (read file), grep (search in files), and curl (get content from web). You can't use pipe '|', it's not Linux.Detailed usage are stated in README.md..",
+          "description": "Run a text command and return its output. Use to answer questions about files or content. Supported: ls (list files, supports glob patterns like 'word*'), cat (read file), grep (search in files), and curl (get content from web). You can't use pipe '|', it's not Linux, do not use the undocumented options. Detailed usage are stated in README.md..",
           "parameters": {
             "type": "object",
             "properties": {

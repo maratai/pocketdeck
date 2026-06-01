@@ -860,6 +860,7 @@ class Reader:
 
   def scroll_by(self, delta):
     self.scroll_px += int(delta)
+    self.scroll_px = self.scroll_px // self.line_height * self.line_height
     if self.scroll_px < -self.line_height:
       self.scroll_px = -self.line_height
     max_scroll = max(0, self.total_height - self.text_h)
@@ -873,7 +874,7 @@ class Reader:
 
   def page_up(self):
     #self.scroll_by(-(self.text_h // self.line_height) * self.line_height+self.line_height)
-    self.scroll_by(-(self.screen_h - self.margin_top - self.margin_bottom))
+    self.scroll_by(-(self.screen_h - self.margin_top - self.margin_bottom)+1)
 
   def draw_header(self):
     if self.current_path:
