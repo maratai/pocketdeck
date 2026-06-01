@@ -1,10 +1,6 @@
 {
     "urls": [
         [
-            "#qr.py#",
-            "#qr.py#"
-        ],
-        [
             "analog_clock.py",
             "analog_clock.py"
         ],
@@ -457,6 +453,10 @@
             "pem.py"
         ],
         [
+            "pem_client.py",
+            "pem_client.py"
+        ],
+        [
             "pem_extra.py",
             "pem_extra.py"
         ],
@@ -727,6 +727,10 @@
             "md5": "f01067a4d408cf410b55d6d898f4bfec"
         },
         {
+            "path": "pem_client.py",
+            "md5": "b0b6fd36349ebdfabd6b14240546a087"
+        },
+        {
             "path": "pdeck_complete.py",
             "md5": "0e0fbfe8f82ccd64948b5a33b4fb9bca"
         },
@@ -752,7 +756,7 @@
         },
         {
             "path": "codec_config.py",
-            "md5": "093dec8724c34de2560964ea0bb15cd1"
+            "md5": "41f79b63f5611c2d808712b2884e6ded"
         },
         {
             "path": "voicerecorder.py",
@@ -776,7 +780,7 @@
         },
         {
             "path": "gpt_rt.py",
-            "md5": "f28e0b6c3df440cbffe04f0c625b3f0a"
+            "md5": "d634148865c4b8eea451fdc54a70f787"
         },
         {
             "path": "pngreader.py",
@@ -804,7 +808,7 @@
         },
         {
             "path": "ls.py",
-            "md5": "4f077bd90d2ffcf8df4d9a9ff6c3ee73"
+            "md5": "a19a4f0559a0b58d505dd0152b94f939"
         },
         {
             "path": "pie.py",
@@ -832,7 +836,7 @@
         },
         {
             "path": "reader.py",
-            "md5": "437afbdcc37902ef91b0cbf13170cb61"
+            "md5": "9e515fa3fe1c4c13740bba28008e8c23"
         },
         {
             "path": "music.py",
@@ -840,7 +844,7 @@
         },
         {
             "path": "pem_keymap_default.py",
-            "md5": "67ee3fd12279025fbefad35e9876b2f1"
+            "md5": "a2bf6ab5bbb16b0718fc679966de43a5"
         },
         {
             "path": "docs.py",
@@ -868,7 +872,7 @@
         },
         {
             "path": "jp_input.py",
-            "md5": "cbb20dd16541d3710f5e98cf8ac33fcc"
+            "md5": "c2b8b40b96bf198060398f2c4629609f"
         },
         {
             "path": "qr.py",
@@ -880,7 +884,7 @@
         },
         {
             "path": "pem.py",
-            "md5": "d04d35fd27fe9cf5d866827f9e18b2a3"
+            "md5": "a70e64f138062feb149f83a2703ba86b"
         },
         {
             "path": "recorder.py",
@@ -933,10 +937,6 @@
         {
             "path": "dic.py",
             "md5": "d25730d654db7300ec710a432ac1f1e6"
-        },
-        {
-            "path": "#qr.py#",
-            "md5": "f6b1b2e1597876f3da1c64a03b13602b"
         },
         {
             "path": "remote_python_call.py",
@@ -1032,7 +1032,7 @@
         },
         {
             "path": "data/apps_db.json",
-            "md5": "c25b34d5c7e98da4cacff31c6dcad476"
+            "md5": "589fdb570d06592bebe3ead355b07f00"
         },
         {
             "path": "data/cat3.xbmr",
