@@ -29,6 +29,18 @@ if not hasattr(_t, 'ticks_ms'):
   _t.sleep_ms   = lambda ms: _builtin_sleep(ms / 1000)
   _t.sleep_us   = lambda us: _builtin_sleep(us / 1_000_000)
 
+# MicroPython's time.mktime() takes an 8-tuple (year, month, mday, hour, min,
+# sec, weekday, yearday) and is the UTC inverse of time.gmtime(). CPython's
+# mktime() instead needs a full 9-tuple with valid wday/yday/isdst and does
+# local-time conversion, so device code like analog_clock's
+# `time.mktime((y, m, 1, 0,0,0, 0, 0))` raises "illegal time tuple argument".
+# Replace it with calendar.timegm (true gmtime inverse, reads only the first 6
+# fields) so gmtime(mktime(...)) round-trips exactly as on the device.
+if getattr(_t, '_emulator_mktime_patched', None) is None:
+  import calendar as _cal
+  _t.mktime = lambda tup: _cal.timegm(tuple(tup))
+  _t._emulator_mktime_patched = True
+
 sys.modules.setdefault('utime', sys.modules['time'])
 
 
@@ -109,21 +121,34 @@ def run_app(code_path, args_list):
   import vscreen as vs_mod
   vs_mod._init_js()
 
-  def _do_frame():
+  # Frame-rate cap. Apps drive rendering by calling delay_tick()/time.sleep() in
+  # a tight loop (analog_clock spins at ~4 ms ≈ 250 fps), which is far faster and
+  # busier than the real ~75 Hz LCD. Gate frame production so callbacks render at
+  # most ~75 fps — matching the device and cutting postMessage volume to the main
+  # thread. App logic (timers, input) is unaffected; only the redraw is throttled.
+  _MIN_FRAME_S = 1.0 / 75
+  _last_frame = [0.0]
+
+  def _do_frame(force=False):
     cb = vs_mod._registered_callback
-    if cb and not vs_mod._in_callback:
-      vs_mod._batch.clear()
-      vs_mod._in_callback = True
-      try:
-        cb(True)
-      except vs_mod.StopApp:
-        raise
-      except Exception:
-        import traceback
-        _post({'type': 'error', 'message': traceback.format_exc()})
-      finally:
-        vs_mod._in_callback = False
-      vs_mod._flush_frame()
+    if not cb or vs_mod._in_callback:
+      return
+    now = _t.time()
+    if not force and (now - _last_frame[0]) < _MIN_FRAME_S:
+      return
+    _last_frame[0] = now
+    vs_mod._batch.clear()
+    vs_mod._in_callback = True
+    try:
+      cb(True)
+    except vs_mod.StopApp:
+      raise
+    except Exception:
+      import traceback
+      _post({'type': 'error', 'message': traceback.format_exc()})
+    finally:
+      vs_mod._in_callback = False
+    vs_mod._flush_frame()
 
   # Blocking read: render a frame, then park up to `wait_ms` for a key.
   def _blocking_read(n, wait_ms):

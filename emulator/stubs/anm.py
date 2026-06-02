@@ -95,8 +95,12 @@ class anm_sequencer:
   def __init__(self):
     self._objects = {}
 
-  def register(self, key, obj):
-    obj._start_ms = _time.ticks_ms()
+  def register(self, key, obj, seek_to=None):
+    if seek_to is not None and seek_to > 0 and obj._duration_ms > 0:
+      elapsed = int(seek_to * obj._duration_ms)
+      obj._start_ms = _time.ticks_ms() - elapsed
+    else:
+      obj._start_ms = _time.ticks_ms()
     self._objects[key] = obj
 
   def unregister(self, key):

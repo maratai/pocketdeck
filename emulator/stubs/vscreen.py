@@ -80,28 +80,34 @@ def _flush_frame():
   _batch.clear()
 
 
-_FONT_MAP = {
-  'u8g2_font_profont11_mf':     '9px "Courier New",monospace',
-  'u8g2_font_profont15_mf':     '12px "Courier New",monospace',
-  'u8g2_font_profont22_mf':     '18px "Courier New",monospace',
-  'u8g2_font_profont29_mf':     '24px "Courier New",monospace',
-  'u8g2_font_tenfatguys_tf':    'bold 11px "Courier New",monospace',
-  'u8g2_font_tenthinnerguys_tf':'9px "Courier New",monospace',
-  'u8g2_font_t0_11_me':         '9px monospace',
-  'u8g2_font_t0_15_me':         '12px monospace',
-  'u8g2_font_t0_15b_me':        'bold 12px monospace',
-  'u8g2_font_t0_17_me':         '14px monospace',
-  'u8g2_font_t0_22_me':         '18px monospace',
-  'spleen612':                  '10px monospace',
-  'spleen816':                  '14px monospace',
+# Per-font metrics for layout math (get_str_width / button height). Values:
+#   (glyph_px_height, cell_advance_px) — advances taken from the real u8g2
+# glyph data so get_str_width matches the device closely. The browser renders
+# the actual bitmap glyphs (see index.html GFX_U8G2), so these are only used
+# for Python-side positioning, not for drawing.
+_FONT_METRICS = {
+  'u8g2_font_profont11_mf':     (11, 6),
+  'u8g2_font_profont15_mf':     (15, 7),
+  'u8g2_font_profont22_mf':     (22, 12),
+  'u8g2_font_profont29_mf':     (29, 16),
+  'u8g2_font_tenfatguys_tf':    (15, 11),
+  'u8g2_font_tenthinnerguys_tf':(15, 7),
+  'u8g2_font_t0_11_me':         (11, 6),
+  'u8g2_font_t0_15_me':         (15, 8),
+  'u8g2_font_t0_15b_me':        (15, 8),
+  'u8g2_font_t0_17_me':         (17, 9),
+  'u8g2_font_t0_22_me':         (22, 11),
+  'spleen612':                  (12, 6),
+  'spleen816':                  (16, 8),
 }
 
 
 class Vscreen:
   def __init__(self):
     self._draw_color = 1     # 0=black, 1=white, 2=xor
-    self._font = '12px "Courier New",monospace'
-    self._font_px_cache = 12
+    self._font = 'u8g2_font_profont15_mf'
+    self._font_px_cache = 15
+    self._cell_w = 7
     self._baseline = 'alphabetic'   # u8g2 default reference is the baseline
     self._dither = 16
     self._callback = None
@@ -124,14 +130,18 @@ class Vscreen:
     self._emit('dith', self._dither)
 
   def set_font(self, font_name):
-    self._font = _FONT_MAP.get(str(font_name), '12px "Courier New",monospace')
-    try:
-      self._font_px_cache = int(self._font.split('px')[0].split()[-1])
-    except Exception:
-      self._font_px_cache = 12
-    self._emit('font', self._font)
+    name = str(font_name)
+    px, cell = _FONT_METRICS.get(name, (15, 7))
+    self._font = name
+    self._font_px_cache = px
+    self._cell_w = cell
+    # Emit the device font name; the browser maps it to the real u8g2 bitmap.
+    self._emit('font', name)
 
-  def set_font_mode(self, mode): pass
+  def set_font_mode(self, mode):
+    # u8g2 font mode: 1 = transparent (glyph only), 0 = solid (opaque bg box of
+    # the opposite color). Used e.g. by analog_clock to invert the selected day.
+    self._emit('fmode', int(mode))
   def set_font_direction(self, d): pass
   def set_bitmap_mode(self, mode): pass
   def set_font_pos_baseline(self): self._baseline = 'alphabetic'; self._emit('base', 'alphabetic')
@@ -177,8 +187,9 @@ class Vscreen:
     self._emit('str', x + ph, y + pv, str(text))
 
   def get_str_width(self, text):
-    # Monospace approximation: char width ≈ 0.6 × font px
-    return int(len(str(text)) * self._font_px_cache * 0.6)
+    # Use the font's real cell advance (monospace device fonts), matching the
+    # firmware's get_str_width closely for layout/right-alignment.
+    return int(len(str(text)) * self._cell_w)
 
   def get_utf8_width(self, text):
     return self.get_str_width(text)
@@ -250,11 +261,15 @@ class Vscreen:
     return int(_kstate[int(key_code) & 0xFF])
 
   def get_tp_keys(self):
-    # tp[0] = slider analog position (0..40, 0xff = not touched), published by the
-    # on-screen slider via kMeta[3]. Remaining bytes (touch/buttons) are unused here.
-    tp = bytearray(7)
-    pos = int(_Atomics.load(_meta, 3)) & 0xFF
-    tp[0] = pos
+    # Byte layout (matches device firmware get_tp_keys):
+    #   [0] slider  0..40 / 0xff=not-touched  (kMeta[3])
+    #   [1] touch Y 0..255 / 0xff=not-touched
+    #   [2] touch X 0..255 / 0xff=not-touched
+    #   [3] buttons  bit0=left, bit1=right
+    #   [4] dial    0..255 / 0xff=not-touched  (kMeta[4])
+    tp = bytearray([0xff, 0xff, 0xff, 0x00, 0xff, 0xff, 0xff])
+    tp[0] = int(_Atomics.load(_meta, 3)) & 0xFF
+    tp[4] = int(_Atomics.load(_meta, 4)) & 0xFF
     return bytes(tp)
 
   def get_terminal_size(self):

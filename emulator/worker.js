@@ -10,7 +10,9 @@ const STUB_FILES = [
   'ujson.py', 'network.py', 'termios.py', 'machine.py', 'micropython.py',
   // Japanese input (PEM): socket bridges HTTP to sync-XHR for henkan; fontloader
   // is a no-op since the browser renders CJK glyphs itself.
-  'socket.py', 'fontloader.py'
+  'socket.py', 'fontloader.py',
+  // Network request and audio-file stubs (analog_clock uses both; audio ignored).
+  'urequests.py', 'wav_loader.py',
 ];
 
 // ── Bundled demo apps ────────────────────────────────────────────────────────
@@ -33,6 +35,24 @@ def main(vs, args):
     code: `import home
 def main(vs, args):
   home.main(vs, args)
+`
+  },
+
+  'analog_clock': {
+    label: 'Analog Clock',
+    desc: 'Clock, calendar and kitchen timer. BS/B = toggle timer. C = copy date.',
+    code: `import analog_clock
+def main(vs, args):
+  analog_clock.main(vs, args)
+`
+  },
+
+  'journal': {
+    label: 'Journal',
+    desc: 'Visualizes journal.md habits and graphs. Up/Down = month, Left/Right = graph.',
+    code: `import journal
+def main(vs, args):
+  journal.main(vs, args)
 `
   },
 
@@ -63,6 +83,8 @@ self.onmessage = async (e) => {
       self.emulator_meta   = new Int32Array(sab, 0, 16);
       self.emulator_data   = new Uint8Array(sab, 64, RING);
       self.emulator_kstate = new Uint8Array(sab, 64 + RING, KSTATE);
+      // kMeta[4] = dial position (0..255, 0xff = not touched)
+      Atomics.store(self.emulator_meta, 4, 255);
 
       // Allow Python (send_char) to inject keys into the same ring.
       self.emulator_push_key = (str) => {
@@ -99,6 +121,22 @@ self.onmessage = async (e) => {
         } catch (_) { return null; }
       };
 
+      // Binary variant for asset files (xbmr images, etc.). Reads the body as a
+      // raw byte string (x-user-defined keeps bytes 1:1) and returns a Uint8Array.
+      self.emulator_fetch_bytes = (url) => {
+        try {
+          const xhr = new XMLHttpRequest();
+          xhr.open('GET', url, false);
+          xhr.overrideMimeType('text/plain; charset=x-user-defined');
+          xhr.send();
+          if (xhr.status !== 200) return null;
+          const s = xhr.responseText;
+          const out = new Uint8Array(s.length);
+          for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i) & 0xff;
+          return out;
+        } catch (_) { return null; }
+      };
+
       pyodide = await loadPyodide({
         indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.26.2/full/',
       });
@@ -121,7 +159,7 @@ for _m in ('socket', 'fontloader'):
 
       // Seed the device-like filesystem so apps that read /config and /sd work.
       try {
-        for (const d of ['/config', '/config/ssh', '/sd', '/sd/Documents', '/sd/work', '/sd/py', '/sd/lib', '/sd/Documents/pd'])
+        for (const d of ['/config', '/config/ssh', '/sd', '/sd/Documents', '/sd/work', '/sd/py', '/sd/lib', '/sd/lib/data', '/sd/Documents/pd'])
           try { pyodide.FS.mkdirTree(d); } catch (_) {}
         const apps = [
           ["Pem",          { type:"program", command:[["pem"]],          description:"Pem text editor" }],
@@ -145,6 +183,20 @@ for _m in ('socket', 'fontloader'):
         // Loads PEM manual
         const body = self.emulator_fetch_text('../docs/pem_readme.md');
         pyodide.FS.writeFile('/sd/Documents/pd/pem_readme.md', body);
+
+        // Seed the binary image assets (xbmr) from lib/data into /sd/lib/data,
+        // so apps that load images work — e.g. analog_clock's cat animation and
+        // home's nunomo logo splash. Files are binary, so fetch as bytes.
+        // Only image assets — skip the large .wav files (audio is stubbed out,
+        // and invader.wav alone is ~8 MB), keeping startup fast.
+        const dataManifest = self.emulator_fetch_text('../lib/data/_manifest.json');
+        if (dataManifest) {
+          for (const name of JSON.parse(dataManifest)) {
+            if (!/\.(xbm|xbmr)$/i.test(name)) continue;
+            const bytes = self.emulator_fetch_bytes('../lib/data/' + name);
+            if (bytes) pyodide.FS.writeFile('/sd/lib/data/' + name, bytes);
+          }
+        }
       } catch (e) { /* non-fatal */ }
 
       // Install an import hook: any module not satisfied by the built-in stubs

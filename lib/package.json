@@ -57,6 +57,10 @@
             "curl.py"
         ],
         [
+            "data/_manifest.json",
+            "data/_manifest.json"
+        ],
+        [
             "data/active.xbmr",
             "data/active.xbmr"
         ],
@@ -1032,7 +1036,7 @@
         },
         {
             "path": "data/apps_db.json",
-            "md5": "220e07658d2f37206c0321c2e7dd1c77"
+            "md5": "c241d17adfe4e72f4cf504b447735282"
         },
         {
             "path": "data/cat3.xbmr",
@@ -1113,6 +1117,10 @@
         {
             "path": "data/cat1.xbm",
             "md5": "91ea51d418bae334e12390192ff5d48c"
+        },
+        {
+            "path": "data/_manifest.json",
+            "md5": "da5ebd5c1e27bf8cdd2c49fbe5599e5e"
         },
         {
             "path": "data/guitar_wt.wav",

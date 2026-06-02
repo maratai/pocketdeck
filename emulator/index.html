@@ -26,8 +26,19 @@
       }},
     };
   </script>
+  <script src="./fonts/t0_11_me.js"></script>
   <script src="./fonts/t0_15_me.js"></script>
   <script src="./fonts/t0_15b_me.js"></script>
+  <script src="./fonts/t0_17_me.js"></script>
+  <script src="./fonts/t0_22_me.js"></script>
+  <script src="./fonts/profont11_mf.js"></script>
+  <script src="./fonts/profont15_mf.js"></script>
+  <script src="./fonts/profont22_mf.js"></script>
+  <script src="./fonts/profont29_mf.js"></script>
+  <script src="./fonts/tenfatguys_tf.js"></script>
+  <script src="./fonts/tenthinnerguys_tf.js"></script>
+  <script src="./fonts/spleen612.js"></script>
+  <script src="./fonts/spleen816.js"></script>
   <script src="./fonts/u8g2font.js"></script>
   <script src="./fonts/unifont_large.js" defer></script>
   <style>
@@ -108,7 +119,7 @@
       Pocket Deck <span class="font-normal opacity-60">Emulator</span>
     </h1>
     <p class="font-body text-[14px] text-on-surface-variant mt-1">
-      Try Pocket deck Home app and PEM editor.
+      Try Pocket Deck apps in the browser. Keyboard, D-pad, and slider on the device image are clickable. Drag the D-pad center ring to rotate the dial (used by the kitchen timer).
     </p>
   </div>
 
@@ -139,6 +150,9 @@
       <div id="btn-down"  class="dev-btn" style="left:14.7%; top:70.4%; width:8%;"  aria-label="Down"></div>
       <div id="btn-left"  class="dev-btn" style="left:8.0%;  top:60.6%; width:8%;"  aria-label="Left"></div>
       <div id="btn-right" class="dev-btn" style="left:21.5%; top:60.6%; width:8%;"  aria-label="Right"></div>
+      <!-- The dial is the hidden circular touch sensor beneath the D-pad; it has no
+           element of its own — pressing/rotating on the D-pad buttons drives it
+           (see dialEngage/dialMove in the controls script). -->
       <div id="btn-a"     class="dev-btn" style="left:93.4%; top:64.4%; width:7%;"  aria-label="A (Enter)"></div>
       <div id="btn-b"     class="dev-btn" style="left:83.7%; top:72.8%; width:7%;"  aria-label="B (Backspace)"></div>
       <div id="slider-track" class="dev-slider" style="left:73.5%; top:23.5%; width:6%; height:31%;" aria-label="Slider">
@@ -276,26 +290,59 @@ function clearGray() {
 // canvas default must be 'alphabetic', not 'top'.
 const DEFAULT_FONT = '12px "Courier New",monospace';
 let curColor = 1, curDither = 16, curFont = DEFAULT_FONT, curBaseline = 'alphabetic';
+let curFontName = '';   // device font name (e.g. 'u8g2_font_profont15_mf')
+let curFontMode = 1;    // u8g2 font mode: 1 = transparent, 0 = solid (bg box)
 function resetRenderState() {
   curColor = 1; curDither = 16; curFont = DEFAULT_FONT; curBaseline = 'alphabetic';
+  curFontName = ''; curFontMode = 1;
 }
+// CSS fallback for fonts we have no bitmap for, and for rotated (vstr) text.
+const FONT_CSS_FALLBACK = {
+  'u8g2_font_profont11_mf':'9px "Courier New",monospace',
+  'u8g2_font_profont15_mf':'12px "Courier New",monospace',
+  'u8g2_font_profont22_mf':'18px "Courier New",monospace',
+  'u8g2_font_profont29_mf':'24px "Courier New",monospace',
+  'u8g2_font_t0_11_me':'9px monospace', 'u8g2_font_t0_15_me':'12px monospace',
+  'u8g2_font_t0_15b_me':'bold 12px monospace', 'u8g2_font_t0_17_me':'14px monospace',
+  'u8g2_font_t0_22_me':'18px monospace',
+  'u8g2_font_tenfatguys_tf':'bold 11px "Courier New",monospace',
+  'u8g2_font_tenthinnerguys_tf':'9px "Courier New",monospace',
+  'spleen612':'10px monospace', 'spleen816':'14px monospace',
+};
 function fg() {
   if (curDither === 0) return 'rgba(0,0,0,0)';
   const a = curDither / 16;
+  // draw_color 1 = white ink, 0 = black (erase to background). color 2 (XOR) is
+  // handled specially for box/rbox (invertRegion), so it never reaches fg().
   if (curColor === 1) return a < 1 ? `rgba(255,255,255,${a})` : '#ffffff';
   return a < 1 ? `rgba(0,0,0,${a})` : '#000000';
+}
+// XOR/invert (draw_color 2): the device has a single buffer, so an XOR box flips
+// every pixel under it — both filled shapes and text. We mirror that by inverting
+// the value channel of BOTH the gray (fill) and text layers in the region. Alpha
+// is preserved so transparent (no-glyph) text pixels stay transparent.
+function invertRegion(x, y, w, h) {
+  x = Math.max(0, x | 0); y = Math.max(0, y | 0);
+  w = Math.min(W - x, w | 0); h = Math.min(H - y, h | 0);
+  if (w <= 0 || h <= 0) return;
+  for (const ctx of [gctx, tctx]) {
+    const img = ctx.getImageData(x, y, w, h), d = img.data;
+    for (let i = 0; i < d.length; i += 4) { d[i] = 255 - d[i]; d[i+1] = 255 - d[i+1]; d[i+2] = 255 - d[i+2]; }
+    ctx.putImageData(img, x, y);
+  }
 }
 function renderFrame(cmds) {
   clearGray();
   const ctx = gctx;
   for (const c of cmds) {
     switch (c[0]) {
-      case 'col':   curColor = c[1];
-        ctx.globalCompositeOperation = (c[1] === 2) ? 'xor' : 'source-over'; break;
+      case 'col':   curColor = c[1]; break;
       case 'dith':  curDither = c[1]; break;
-      case 'font':  curFont = c[1]; break;
+      case 'fmode': curFontMode = c[1]; break;
+      case 'font':  curFontName = c[1]; curFont = FONT_CSS_FALLBACK[c[1]] || c[1] || DEFAULT_FONT; break;
       case 'base':  curBaseline = c[1]; break;
-      case 'box':   ctx.fillStyle = fg(); ctx.fillRect(c[1], c[2], c[3], c[4]);
+      case 'box':   if (curColor === 2) { invertRegion(c[1], c[2], c[3], c[4]); break; }
+                    ctx.fillStyle = fg(); ctx.fillRect(c[1], c[2], c[3], c[4]);
                     // A background (color 0) box erases everything underneath on
                     // the real one-buffer display — including text drawn earlier
                     // this frame (e.g. home's draw_help() erase bar over the menu).
@@ -303,27 +350,27 @@ function renderFrame(cmds) {
                     if (curColor === 0) tctx.clearRect(c[1], c[2], c[3], c[4]); break;
       case 'frame': ctx.strokeStyle = fg(); ctx.lineWidth = 1;
                     ctx.strokeRect(c[1]+0.5, c[2]+0.5, c[3]-1, c[4]-1); break;
-      case 'line':  ctx.strokeStyle = fg(); ctx.lineWidth = 1; ctx.beginPath();
-                    ctx.moveTo(c[1], c[2]); ctx.lineTo(c[3], c[4]); ctx.stroke(); break;
-      case 'rbox':  rrect(c[1], c[2], c[3], c[4], c[5], true);
+      case 'line':  crispLine(c[1], c[2], c[3], c[4]); break;
+      case 'rbox':  if (curColor === 2) { invertRegion(c[1], c[2], c[3], c[4]); break; }
+                    crispRRect(c[1], c[2], c[3], c[4], c[5], true);
                     if (curColor === 0) tctx.clearRect(c[1], c[2], c[3], c[4]); break;
-      case 'rframe':rrect(c[1], c[2], c[3], c[4], c[5], false); break;
+      case 'rframe':crispRRect(c[1], c[2], c[3], c[4], c[5], false); break;
       case 'circ':  ctx.strokeStyle = fg(); ctx.lineWidth = 1; ctx.beginPath();
                     ctx.arc(c[1], c[2], c[3], 0, 2*Math.PI); ctx.stroke(); break;
       case 'disc':  ctx.fillStyle = fg(); ctx.beginPath();
                     ctx.arc(c[1], c[2], c[3], 0, 2*Math.PI); ctx.fill(); break;
       case 'arc':   ctx.strokeStyle = fg(); ctx.lineWidth = 1; ctx.beginPath();
                     ctx.arc(c[1], c[2], c[3], c[4]*Math.PI/180, c[5]*Math.PI/180); ctx.stroke(); break;
-      case 'tri':   ctx.fillStyle = fg(); ctx.beginPath();
-                    ctx.moveTo(c[1],c[2]); ctx.lineTo(c[3],c[4]); ctx.lineTo(c[5],c[6]);
-                    ctx.closePath(); ctx.fill(); break;
+      case 'tri':   drawPoly([c[1], c[3], c[5], c[2], c[4], c[6]]); break;
       case 'ell':   ctx.beginPath(); ctx.ellipse(c[1],c[2],c[3],c[4],0,0,2*Math.PI);
                     if (c[5]) { ctx.fillStyle = fg(); ctx.fill(); }
                     else { ctx.strokeStyle = fg(); ctx.lineWidth = 1; ctx.stroke(); } break;
       case 'poly':  drawPoly(c[1]); break;
-      case 'str':   tctx.font = curFont; tctx.textBaseline = curBaseline;
-                    tctx.fillStyle = curColor === 0 ? '#000000' : '#ffffff';
-                    tctx.fillText(c[3], c[1], c[2]); break;
+      case 'str':   { const bf = GFX_U8G2[curFontName];
+                    if (bf) drawU8g2Str(bf, c[1], c[2], c[3], curColor, curBaseline, curFontMode);
+                    else { tctx.font = curFont; tctx.textBaseline = curBaseline;
+                      tctx.fillStyle = curColor === 0 ? '#000000' : '#ffffff';
+                      tctx.fillText(c[3], c[1], c[2]); } } break;
       case 'vstr':  tctx.save(); tctx.translate(c[1], c[2]); tctx.rotate(Math.PI/2);
                     tctx.font = curFont; tctx.textBaseline = curBaseline;
                     tctx.fillStyle = curColor === 0 ? '#000000' : '#ffffff';
@@ -334,20 +381,111 @@ function renderFrame(cmds) {
   }
   present();
 }
-function rrect(x, y, w, h, r, fill) {
-  r = Math.min(r, w/2, h/2);
-  gctx.beginPath();
-  gctx.moveTo(x+r, y); gctx.arcTo(x+w, y, x+w, y+h, r);
-  gctx.arcTo(x+w, y+h, x, y+h, r); gctx.arcTo(x, y+h, x, y, r);
-  gctx.arcTo(x, y, x+w, y, r); gctx.closePath();
-  if (fill) { gctx.fillStyle = fg(); gctx.fill(); }
-  else { gctx.strokeStyle = fg(); gctx.lineWidth = 1; gctx.stroke(); }
+// Crisp 1-bit rounded rectangle (draw_rbox fill / draw_rframe outline). Replaces
+// a canvas arcTo+stroke path whose anti-aliased edges turned ragged after the
+// 1-bit threshold. Uses the same draw-time dither stipple as the other crisp
+// primitives, so a dithered frame (e.g. menu_ui's unfocused button at dither 14)
+// keeps a consistent pattern.
+function crispRRect(x, y, w, h, r, fill) {
+  x |= 0; y |= 0; w |= 0; h |= 0; r |= 0;
+  if (w <= 0 || h <= 0) return;
+  r = Math.min(r, w >> 1, h >> 1);
+  const solid = curDither >= 16;
+  gctx.fillStyle = inkStyle();
+  const px = (X, Y) => { if (solid || bayerOn(X, Y)) gctx.fillRect(X, Y, 1, 1); };
+  const span = (xa, xb, Y) => {
+    if (xb < xa) return;
+    if (solid) gctx.fillRect(xa, Y, xb - xa + 1, 1);
+    else for (let X = xa; X <= xb; X++) if (bayerOn(X, Y)) gctx.fillRect(X, Y, 1, 1);
+  };
+  const isq = v => Math.floor(Math.sqrt(v < 0 ? 0 : v));
+
+  if (fill) {
+    const top = y + r, bot = y + h - 1 - r;
+    for (let Y = y; Y < y + h; Y++) {
+      let inset = 0;
+      if (Y < top)      inset = r - isq(r * r - (top - Y) * (top - Y));
+      else if (Y > bot) inset = r - isq(r * r - (Y - bot) * (Y - bot));
+      span(x + inset, x + w - 1 - inset, Y);
+    }
+    return;
+  }
+
+  // Frame: straight edges between the corners + four quarter-circle arcs.
+  const xl = x + r, xr = x + w - 1 - r, yu = y + r, yl = y + h - 1 - r;
+  for (let X = xl; X <= xr; X++) { px(X, y); px(X, y + h - 1); }
+  for (let Y = yu; Y <= yl; Y++) { px(x, Y); px(x + w - 1, Y); }
+  let dx = r, dy = 0, err = 1 - r;                 // midpoint circle, outer quarters
+  while (dx >= dy) {
+    px(xl - dx, yu - dy); px(xl - dy, yu - dx);     // top-left
+    px(xr + dx, yu - dy); px(xr + dy, yu - dx);     // top-right
+    px(xl - dx, yl + dy); px(xl - dy, yl + dx);     // bottom-left
+    px(xr + dx, yl + dy); px(xr + dy, yl + dx);     // bottom-right
+    dy++;
+    if (err < 0) err += 2 * dy + 1;
+    else { dx--; err += 2 * (dy - dx) + 1; }
+  }
 }
+// ── Crisp 1-bit primitives ────────────────────────────────────────────────────
+// Canvas vector strokes/fills anti-alias their edges; once Bayer-dithered those
+// edges turn ragged/stippled. The device draws crisp 1-bit shapes instead, so we
+// rasterize lines and polygons ourselves with integer-aligned fillRect spans
+// (which are NOT anti-aliased).
+//
+// Dithering is applied at DRAW TIME as a 1-bit stipple, using the exact same rule
+// present() uses for fills (pixel ON ⟺ BAYER[y&3][x&3] < dither). This matches the
+// device, where dither is a deterministic stipple: drawing a pixel twice is
+// idempotent. That's essential for shapes like the timer's filled arc, which is
+// built from 60 overlapping triangle segments — alpha-blended fills would
+// accumulate at the shared edges and mottle the pattern.
+function inkStyle() { return curColor === 0 ? '#000000' : '#ffffff'; }
+function bayerOn(x, y) { return BAYER[((y & 3) << 2) + (x & 3)] < curDither; }
+
+function crispLine(x1, y1, x2, y2) {
+  if (curDither === 0) return;
+  x1 = Math.round(x1); y1 = Math.round(y1); x2 = Math.round(x2); y2 = Math.round(y2);
+  const solid = curDither >= 16;
+  gctx.fillStyle = inkStyle();
+  let dx = Math.abs(x2 - x1), dy = -Math.abs(y2 - y1);
+  let sx = x1 < x2 ? 1 : -1, sy = y1 < y2 ? 1 : -1, err = dx + dy;
+  for (;;) {
+    if (solid || bayerOn(x1, y1)) gctx.fillRect(x1, y1, 1, 1);
+    if (x1 === x2 && y1 === y2) break;
+    const e2 = 2 * err;
+    if (e2 >= dy) { err += dy; x1 += sx; }
+    if (e2 <= dx) { err += dx; y1 += sy; }
+  }
+}
+// Even-odd scanline polygon fill. pts is [x0..xn-1, y0..yn-1] (u8g2 layout).
 function drawPoly(pts) {
+  if (curDither === 0) return;
   const n = pts.length / 2;
-  gctx.beginPath(); gctx.moveTo(pts[0], pts[n]);
-  for (let i = 1; i < n; i++) gctx.lineTo(pts[i], pts[n+i]);
-  gctx.closePath(); gctx.fillStyle = fg(); gctx.fill();
+  const xs = [], ys = [];
+  let minY = Infinity, maxY = -Infinity;
+  for (let i = 0; i < n; i++) {
+    const x = Math.round(pts[i]), y = Math.round(pts[n + i]);
+    xs.push(x); ys.push(y);
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  }
+  const solid = curDither >= 16;
+  gctx.fillStyle = inkStyle();
+  for (let y = minY; y <= maxY; y++) {
+    const xints = [];
+    for (let i = 0, j = n - 1; i < n; j = i++) {
+      const yi = ys[i], yj = ys[j];
+      if ((yi <= y && yj > y) || (yj <= y && yi > y)) {
+        xints.push(xs[i] + (y - yi) / (yj - yi) * (xs[j] - xs[i]));
+      }
+    }
+    xints.sort((a, b) => a - b);
+    for (let k = 0; k + 1 < xints.length; k += 2) {
+      const xa = Math.round(xints[k]), xb = Math.round(xints[k + 1]);
+      if (xb < xa) continue;
+      if (solid) { gctx.fillRect(xa, y, xb - xa + 1, 1); }
+      else { for (let x = xa; x <= xb; x++) if (bayerOn(x, y)) gctx.fillRect(x, y, 1, 1); }
+    }
+  }
 }
 function drawFaces(faces) {
   for (const f of faces) {
@@ -367,6 +505,69 @@ function drawXbm(x, y, w, h, bytes) {
       d[i] = d[i+1] = d[i+2] = v; d[i+3] = 255;
     }
   gctx.putImageData(img, x, y);
+}
+
+// ── Graphics-mode text: render the device's exact u8g2 bitmap glyphs ──────────
+// Apps draw_str()/draw_utf8() in graphics mode using device font names. We map
+// each name to its U8g2Font (the same crisp 1-bit glyphs the LCD shows) and
+// paint them onto the text layer, instead of approximating with a CSS font.
+const GFX_U8G2 = {};
+function _regGfx(name, glob) { if (window[glob]) GFX_U8G2[name] = new U8g2Font(window[glob]); }
+_regGfx('u8g2_font_profont11_mf','U8G2_PROFONT11_MF');
+_regGfx('u8g2_font_profont15_mf','U8G2_PROFONT15_MF');
+_regGfx('u8g2_font_profont22_mf','U8G2_PROFONT22_MF');
+_regGfx('u8g2_font_profont29_mf','U8G2_PROFONT29_MF');
+_regGfx('u8g2_font_t0_11_me','U8G2_T0_11_ME');
+_regGfx('u8g2_font_t0_15_me','U8G2_T0_15_ME');
+_regGfx('u8g2_font_t0_15b_me','U8G2_T0_15B_ME');
+_regGfx('u8g2_font_t0_17_me','U8G2_T0_17_ME');
+_regGfx('u8g2_font_t0_22_me','U8G2_T0_22_ME');
+_regGfx('u8g2_font_tenfatguys_tf','U8G2_TENFATGUYS_TF');
+_regGfx('u8g2_font_tenthinnerguys_tf','U8G2_TENTHINNERGUYS_TF');
+_regGfx('spleen612','U8G2_SPLEEN612');
+_regGfx('spleen816','U8G2_SPLEEN816');
+
+// Paint a u8g2 string onto the text layer. u8g2's draw_str y is the baseline;
+// set_font_pos_top/center shift the reference, mirrored here via font.ascent.
+// mode 0 (solid) draws an opaque background box of the OPPOSITE colour behind the
+// glyphs — that's how the device shows e.g. a color-0 day as inverted (black text
+// on a white box). mode 1 (transparent) draws glyphs only.
+function drawU8g2Str(font, x, y, text, color, baseline, mode) {
+  let baseY = y;
+  if (baseline === 'top')         baseY = y + font.ascent;
+  else if (baseline === 'middle') baseY = y + (font.ascent >> 1);
+
+  if (mode === 0) {
+    // Background box spanning the glyph cell across the whole string.
+    let adv = 0;
+    for (const ch of String(text)) {
+      const g = font.glyph(ch.codePointAt(0));
+      adv += g ? g.adv : font.maxW;
+    }
+    const descent = Math.max(0, font.maxH - font.ascent);
+    tctx.fillStyle = (color === 0) ? '#ffffff' : '#000000';   // opposite of ink
+    tctx.fillRect(x, baseY - font.ascent, adv, font.ascent + descent);
+  }
+
+  tctx.fillStyle = (color === 0) ? '#000000' : '#ffffff';
+  let penX = x;
+  for (const ch of String(text)) {
+    const g = font.glyph(ch.codePointAt(0));
+    if (!g) { penX += font.maxW; continue; }
+    const topX = penX + g.x, topY = baseY - (g.h + g.y);
+    for (let row = 0; row < g.h; row++) {
+      let col = 0;
+      while (col < g.w) {                         // batch horizontal runs of lit pixels
+        if (g.bmp[row * g.w + col]) {
+          let run = 1;
+          while (col + run < g.w && g.bmp[row * g.w + col + run]) run++;
+          tctx.fillRect(topX + col, topY + row, run, 1);
+          col += run;
+        } else col++;
+      }
+    }
+    penX += g.adv;
+  }
 }
 
 // ── Monochrome terminal (CLI rendered with the device's u8g2 t0_15_me font) ──
@@ -610,11 +811,12 @@ const kData  = new Uint8Array(keySab, 64, RING);
 const kState = new Uint8Array(keySab, 64 + RING, KSTATE);
 const _enc   = new TextEncoder();
 
-// kMeta[3] carries the on-screen slider's analog position (0..40, 0xff = not
-// touched) so the worker's get_tp_keys() can report it to apps. rawMode mirrors
-// the terminal's ESC[?1h/?1l state — in raw mode the slider scrolls (sends arrow
-// keys) instead, matching the device firmware's slider→scroll-wheel behaviour.
+// kMeta[3] = slider analog position (0..40, 0xff=not-touched).
+// kMeta[4] = dial position (0..255, 0xff=not-touched); set by the dial-ring drag.
+// rawMode mirrors ESC[?1h/?1l — in raw mode the slider scrolls instead of
+// reporting analog position.
 Atomics.store(kMeta, 3, 255);
+Atomics.store(kMeta, 4, 255);
 let rawMode = false;
 
 function sendKey(str) {
@@ -657,6 +859,45 @@ window.addEventListener('keydown', e => {
 });
 window.addEventListener('keyup', e => { if (isRunning) setKeyState(e.keyCode, false); });
 
+// ── Dial (hidden circular touch sensor under the D-pad) ───────────────────────
+// On the device the dial sensor overlaps the D-pad: pressing a D-pad button also
+// touches the dial, and turning the finger around the pad changes the dial value
+// (0..255, 0xff = not touched). So we engage the dial whenever a D-pad button is
+// pressed and update it as the finger rotates. Apps read it via get_tp_keys()[4]
+// (e.g. analog_clock's kitchen timer).
+const DPAD_IDS = new Set(['btn-up', 'btn-down', 'btn-left', 'btn-right']);
+let dialActive = false, dialCX = 0, dialCY = 0;
+let dialStartAngle = 0, dialStartValue = 0, dialCurrentValue = 0;
+
+function dpadCenter() {
+  // Centre of the D-pad cluster, measured from device_front.png (≈14.7%, 60.6%).
+  const r = document.getElementById('device').getBoundingClientRect();
+  return { cx: r.left + r.width * 0.147, cy: r.top + r.height * 0.606 };
+}
+function dialAngle(ex, ey) {           // → 0..256 (one full turn)
+  return ((Math.atan2(ey - dialCY, ex - dialCX) / (2 * Math.PI)) + 1) % 1 * 256;
+}
+function dialEngage(ev) {
+  const c = dpadCenter(); dialCX = c.cx; dialCY = c.cy;
+  dialActive = true;
+  dialStartAngle = dialAngle(ev.clientX, ev.clientY);
+  dialStartValue = dialCurrentValue;
+  Atomics.store(kMeta, 4, dialCurrentValue & 0xFF); Atomics.notify(kMeta, 0);
+}
+function dialMove(ev) {
+  if (!dialActive) return;
+  let delta = dialAngle(ev.clientX, ev.clientY) - dialStartAngle;
+  if (delta >  128) delta -= 256;       // wrap across the 0/256 seam
+  if (delta < -128) delta += 256;
+  dialCurrentValue = (dialStartValue + Math.round(delta)) & 0xFF;
+  Atomics.store(kMeta, 4, dialCurrentValue); Atomics.notify(kMeta, 0);
+}
+function dialRelease() {
+  if (!dialActive) return;
+  dialActive = false;
+  Atomics.store(kMeta, 4, 255); Atomics.notify(kMeta, 0);   // not touched
+}
+
 // ── On-screen buttons (D-pad / A / B) ─────────────────────────────────────────
 // Each feeds the same byte stream + HID key-state table as the keyboard, so apps
 // can't tell a tap from a keypress. Directional keys (and Backspace) auto-repeat
@@ -671,6 +912,7 @@ const BTN = {
 };
 for (const [id, cfg] of Object.entries(BTN)) {
   const el = document.getElementById(id);
+  const isDpad = DPAD_IDS.has(id);
   const press = ev => {
     ev.preventDefault();
     if (!isRunning) return;
@@ -679,16 +921,22 @@ for (const [id, cfg] of Object.entries(BTN)) {
     setKeyState(cfg.code, true);
     sendKey(cfg.seq);
     if (cfg.repeat) cfg._d = setTimeout(() => { cfg._i = setInterval(() => sendKey(cfg.seq), 90); }, 320);
+    if (isDpad) dialEngage(ev);          // pressing the pad also touches the dial
   };
   const release = () => {
     el.classList.remove('pressed');
     setKeyState(cfg.code, false);
     clearTimeout(cfg._d); clearInterval(cfg._i);
+    if (isDpad) dialRelease();
   };
   el.addEventListener('pointerdown', press);
+  // Turning the finger on the pad rotates the dial (pointer is captured, so we
+  // keep getting moves even as it drifts off the button).
+  if (isDpad) el.addEventListener('pointermove', dialMove);
   el.addEventListener('pointerup', release);
   el.addEventListener('pointercancel', release);
-  el.addEventListener('pointerleave', release);
+  // NOTE: no 'pointerleave' release — it would abort a dial rotation that drags
+  // off the button. Pointer capture routes the release to pointerup/cancel.
 }
 
 // ── On-screen slider ──────────────────────────────────────────────────────────
@@ -856,7 +1104,9 @@ function launchApp(id, item) {
 
 function startApp(id) {
   selectedApp = id;
-  rawMode = false; sliderStep = -1; Atomics.store(kMeta, 3, 255);   // reset slider state
+  rawMode = false; sliderStep = -1;
+  Atomics.store(kMeta, 3, 255);   // reset slider
+  Atomics.store(kMeta, 4, 255);   // reset dial
   terminal.reset(); resetRenderState(); setMode(false);
   isRunning = true;
   setStatus('running', 'Running…');

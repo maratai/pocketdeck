@@ -59,7 +59,7 @@ async def run():
     app_items = await page.query_selector_all('.ios-list-item')
     app_count = len(app_items)
     labels = [await it.inner_text() for it in app_items]
-    print(f"{'✓' if app_count == 2 else '✗'} App list: {app_count} apps {labels}")
+    print(f"{'✓' if app_count == 4 else '✗'} App list: {app_count} apps {labels}")
 
     results = {}
 
@@ -104,6 +104,36 @@ async def run():
     print(f"{'✓' if mono_ok else '✗'} 1-bit mono: lit={histo['lit']} off={histo['off']} "
           f"values={histo['distinct']} (lit {frac*100:.0f}%)")
 
+    # ── Analog Clock: tap to run; second hand animates ────────────────────
+    print("\n── Analog Clock ─────────────────────────────────────────────────")
+    await page.click('.ios-list-item:nth-child(3)')
+    await page.wait_for_function(
+      "() => document.getElementById('status-text')?.textContent.includes('Running')",
+      timeout=15_000
+    )
+    # The second hand is stationary between ticks and only eases for a fraction
+    # of each second, so sample densely (over ~3s) to reliably catch the motion.
+    sums = []
+    for _ in range(12):
+      await asyncio.sleep(0.25)
+      sums.append(await page.evaluate(CANVAS_SUM))
+    clock_ok = sums[0] > 0 and len(set(sums)) > 1    # hands move → signature changes
+    results['analog_clock'] = clock_ok
+    print(f"{'✓' if clock_ok else '✗'} Analog Clock running & animating: {len(set(sums))} distinct frames")
+
+    # ── Journal: tap to run; renders the seeded journal.md ─────────────────
+    print("\n── Journal ──────────────────────────────────────────────────────")
+    await page.click('.ios-list-item:nth-child(4)')
+    await page.wait_for_function(
+      "() => document.getElementById('status-text')?.textContent.includes('Running')",
+      timeout=15_000
+    )
+    await asyncio.sleep(2.5)
+    j = await page.evaluate(CANVAS_SUM)
+    journal_ok = j > 0
+    results['journal'] = journal_ok
+    print(f"{'✓' if journal_ok else '✗'} Journal rendered: pixsum {j}")
+
     passed = all(results.values())
 
     # ── Summary ───────────────────────────────────────────────────────────
@@ -120,7 +150,7 @@ async def run():
       print(f"  {'PASS' if v else 'FAIL'}  {k}")
 
     await browser.close()
-    return 0 if (app_count == 2 and passed) else 1
+    return 0 if (app_count == 4 and passed) else 1
 
 if __name__ == '__main__':
   sys.exit(asyncio.run(run()))
