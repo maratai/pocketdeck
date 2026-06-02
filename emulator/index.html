@@ -875,6 +875,16 @@ for (let i = 65; i <= 90; i++) HID[i] = 0x04 + (i - 65);
 function setKeyState(keyCode, down) {
   const h = HID[keyCode]; if (h !== undefined) kState[h] = down ? 1 : 0;
 }
+// Physical key (e.code) → [unshifted, shifted] US-layout ASCII. Used to recover
+// the intended character when macOS composes Option+key into a non-ASCII glyph.
+const CODE_ASCII = {
+  Comma:[',','<'], Period:['.','>'], Slash:['/','?'], Semicolon:[';',':'],
+  Quote:["'",'"'], BracketLeft:['[','{'], BracketRight:[']','}'],
+  Backslash:['\\','|'], Minus:['-','_'], Equal:['=','+'], Backquote:['`','~'],
+  Digit1:['1','!'], Digit2:['2','@'], Digit3:['3','#'], Digit4:['4','$'],
+  Digit5:['5','%'], Digit6:['6','^'], Digit7:['7','&'], Digit8:['8','*'],
+  Digit9:['9','('], Digit0:['0',')'],
+};
 function keyToData(e) {
   const m = { ArrowUp:'\x1b[A', ArrowDown:'\x1b[B', ArrowRight:'\x1b[C', ArrowLeft:'\x1b[D',
     Backspace:'\x08', Delete:'\x1b[3~', Home:'\x1b[H', End:'\x1b[F',
@@ -883,14 +893,18 @@ function keyToData(e) {
   // The device's keystroke channel is ASCII (a USB keyboard sends ASCII; CJK
   // goes through henkan, not raw keys). PEM reads it with .encode('ascii'), so a
   // non-ASCII byte crashes it. macOS composes Option+key into a non-ASCII e.key
-  // (Option+e → '´'), so derive a plain ASCII base from e.code instead.
+  // (Option+e → '´', Option+Shift+. → '˘'), so we recover the intended ASCII from
+  // the physical e.code (US layout) instead of the composed e.key.
   const asciiBase = () => {
-    if (e.key.length === 1 && e.key.charCodeAt(0) < 128) return e.key;
-    let mm = /^Key([A-Z])$/.exec(e.code); if (mm) return mm[1].toLowerCase();
-    mm = /^Digit([0-9])$/.exec(e.code);   if (mm) return mm[1];
+    if (e.key.length === 1 && e.key.charCodeAt(0) < 128) return e.key;  // already ASCII
+    let mm = /^Key([A-Z])$/.exec(e.code);
+    if (mm) return e.shiftKey ? mm[1] : mm[1].toLowerCase();
+    const pair = CODE_ASCII[e.code];
+    if (pair) return pair[e.shiftKey ? 1 : 0];
     return '';
   };
-  // Alt = the emacs "Meta" key: send ESC followed by the (ASCII) key.
+  // Alt = the emacs "Meta" key: send ESC followed by the (ASCII) key. On macOS
+  // the Option key reports altKey, so Meta-commands (M-f, M-<, M-%, …) work.
   if (e.altKey) { const b = asciiBase(); return b ? '\x1b' + b : ''; }
   // Ctrl-Space → NUL (emacs C-Space / set-mark in PEM); also covers Ctrl-@.
   if (e.ctrlKey && (e.code === 'Space' || e.key === ' ' || e.key === '@')) return '\x00';
