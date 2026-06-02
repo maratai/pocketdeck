@@ -112,6 +112,18 @@
 </head>
 <body class="font-body min-h-screen">
 
+<div id="safari-warning" style="display:none" class="bg-[#FF3B30] text-white font-body text-[14px] px-4 py-3 flex items-center justify-between gap-4">
+  <span><strong>Safari is not supported.</strong> Please open this page in <a href="https://www.google.com/chrome/" target="_blank" class="underline font-semibold">Google Chrome</a> for the emulator to work correctly.</span>
+  <button onclick="document.getElementById('safari-warning').style.display='none'" class="shrink-0 opacity-80 hover:opacity-100 text-[18px] leading-none">&times;</button>
+</div>
+<script>
+  (function() {
+    var ua = navigator.userAgent;
+    var isSafari = /Safari/.test(ua) && !/Chrome/.test(ua) && !/Chromium/.test(ua);
+    if (isSafari) document.getElementById('safari-warning').style.display = 'flex';
+  })();
+</script>
+
 <main class="pb-32 max-w-[940px] mx-auto">
 
   <div class="px-4 pt-6 pb-2">
