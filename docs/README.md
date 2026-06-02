@@ -546,9 +546,9 @@ You can update applications and firmware through WiFi connection.
 
 1. Connect to Internet (`wifi` command)
 
-2. Execute `update` command to update MicroPython applications.
+2. Execute `update_firmware` command to update MicroPython applications.
 
-3. Execute `update_firmware` command to update firmware. When download is complete, all four LEDs are on and system will reboot the device to enter firmware update mode. When it's done, firmware updater prints `Done. Reset the unit`. Reset the device. (Unplug power without Lipo. Double click power button with Lipo.
+3. Execute `update` command to update firmware. When download is complete, all four LEDs are on and system will reboot the device to enter firmware update mode. When it's done, firmware updater prints `Done. Reset the unit`. Reset the device. (Unplug power without Lipo. Double click power button with Lipo.
 
 
 

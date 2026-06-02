@@ -1,3 +1,14 @@
+## Release Note June 2, 2026
+
+## Firmware
+
+- `update` command will delete unknown files in /sd/lib. Do not put user files in it.
+
+## Application
+
+- Folder structure change, non-application python files moved under /sd/lib/noa.
+
+
 ## Release Note May 31, 2026
 
 ### PEM
