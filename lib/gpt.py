@@ -881,7 +881,7 @@ def main(vs, args_in):
         print(  f"{el.set_font_color(1)}Agent: Iterating...{el.reset_font_color()}", file=vs)
 
         # Skipping the model and effort if AI put them
-        iter_args_in = code_split()
+        iter_args_in = code.split()
         iter_args = []
         skip = False
         for item in iter_args:

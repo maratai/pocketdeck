@@ -568,7 +568,8 @@ class editor:
     self.v.print(f"{self.sl_info.header}: {self.sl_info.line.decode()}")
     self.v.print(el.erase_to_end_of_current_line())
 
-
+  def new_erow(self, chars, tab_size, w=200):
+    return erow(chars, tab_size, w)
 
   def print_select_dialog(self):
     self.v.print(el.set_font_color(7)) #invert
