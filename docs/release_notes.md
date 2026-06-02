@@ -2,6 +2,7 @@
 
 ### PEM
 
+- Now pem is part of the firmware
 - Undo (C-/)
 - little enhancements
 - C mode
@@ -16,7 +17,9 @@
 
 ### Emulator
 
-- Emulator is available
+- Emulator is available.
+https://pdemulator.nunomo.net/emulator/
+
 
 
 ## Release Note May 30, 2026

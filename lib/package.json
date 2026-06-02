@@ -13,10 +13,6 @@
             "anm.py"
         ],
         [
-            "argparse.py",
-            "argparse.py"
-        ],
-        [
             "auto_connect.py",
             "auto_connect.py"
         ],
@@ -797,10 +793,6 @@
         {
             "path": "gpt.py",
             "md5": "dce6ca8eb92b3fd3952418050e6382aa"
-        },
-        {
-            "path": "argparse.py",
-            "md5": "2eac4aa11d66b654c5dc038546fa3207"
         },
         {
             "path": "fontloader.py",
