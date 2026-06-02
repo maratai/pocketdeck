@@ -9,24 +9,8 @@
             "analog_clock_set_timer.py"
         ],
         [
-            "anm.py",
-            "anm.py"
-        ],
-        [
-            "auto_connect.py",
-            "auto_connect.py"
-        ],
-        [
-            "benchmark.py",
-            "benchmark.py"
-        ],
-        [
             "ble_kb.py",
             "ble_kb.py"
-        ],
-        [
-            "ble_manager.py",
-            "ble_manager.py"
         ],
         [
             "cat.py",
@@ -37,16 +21,8 @@
             "cd.py"
         ],
         [
-            "codec_config.py",
-            "codec_config.py"
-        ],
-        [
             "cp.py",
             "cp.py"
-        ],
-        [
-            "cpmv.py",
-            "cpmv.py"
         ],
         [
             "curl.py",
@@ -205,28 +181,12 @@
             "data/wifi-icon.xbm"
         ],
         [
-            "datetime.mpy",
-            "datetime.mpy"
-        ],
-        [
             "dic.py",
             "dic.py"
         ],
         [
             "docs.py",
             "docs.py"
-        ],
-        [
-            "download_drumkit_uzu.py",
-            "download_drumkit_uzu.py"
-        ],
-        [
-            "dsp_utils.py",
-            "dsp_utils.py"
-        ],
-        [
-            "esclib.py",
-            "esclib.py"
         ],
         [
             "examples/animation_example.py",
@@ -353,14 +313,6 @@
             "font/u8g2_wedge.fnt"
         ],
         [
-            "font2d.py",
-            "font2d.py"
-        ],
-        [
-            "fontloader.py",
-            "fontloader.py"
-        ],
-        [
             "gdrive.py",
             "gdrive.py"
         ],
@@ -381,10 +333,6 @@
             "home.py"
         ],
         [
-            "imagelib.py",
-            "imagelib.py"
-        ],
-        [
             "invader.py",
             "invader.py"
         ],
@@ -397,24 +345,8 @@
             "ls.py"
         ],
         [
-            "menu_ui.py",
-            "menu_ui.py"
-        ],
-        [
-            "misc_utils.py",
-            "misc_utils.py"
-        ],
-        [
             "mkdir.py",
             "mkdir.py"
-        ],
-        [
-            "mock_stream.py",
-            "mock_stream.py"
-        ],
-        [
-            "mouse.py",
-            "mouse.py"
         ],
         [
             "music.py",
@@ -425,24 +357,144 @@
             "mv.py"
         ],
         [
-            "ntptime.mpy",
-            "ntptime.mpy"
+            "noa/anm.py",
+            "noa/anm.py"
+        ],
+        [
+            "noa/auto_connect.py",
+            "noa/auto_connect.py"
+        ],
+        [
+            "noa/benchmark.py",
+            "noa/benchmark.py"
+        ],
+        [
+            "noa/ble_manager.py",
+            "noa/ble_manager.py"
+        ],
+        [
+            "noa/codec_config.py",
+            "noa/codec_config.py"
+        ],
+        [
+            "noa/cpmv.py",
+            "noa/cpmv.py"
+        ],
+        [
+            "noa/datetime.mpy",
+            "noa/datetime.mpy"
+        ],
+        [
+            "noa/download_drumkit_uzu.py",
+            "noa/download_drumkit_uzu.py"
+        ],
+        [
+            "noa/dsp_utils.py",
+            "noa/dsp_utils.py"
+        ],
+        [
+            "noa/erow.py",
+            "noa/erow.py"
+        ],
+        [
+            "noa/esclib.py",
+            "noa/esclib.py"
+        ],
+        [
+            "noa/font2d.py",
+            "noa/font2d.py"
+        ],
+        [
+            "noa/fontloader.py",
+            "noa/fontloader.py"
+        ],
+        [
+            "noa/imagelib.py",
+            "noa/imagelib.py"
+        ],
+        [
+            "noa/menu_ui.py",
+            "noa/menu_ui.py"
+        ],
+        [
+            "noa/misc_utils.py",
+            "noa/misc_utils.py"
+        ],
+        [
+            "noa/mock_stream.py",
+            "noa/mock_stream.py"
+        ],
+        [
+            "noa/mouse.py",
+            "noa/mouse.py"
+        ],
+        [
+            "noa/ntptime.mpy",
+            "noa/ntptime.mpy"
+        ],
+        [
+            "noa/overlay.py",
+            "noa/overlay.py"
+        ],
+        [
+            "noa/pathlib.mpy",
+            "noa/pathlib.mpy"
+        ],
+        [
+            "noa/pdeck_complete.py",
+            "noa/pdeck_complete.py"
+        ],
+        [
+            "noa/pem_extra.py",
+            "noa/pem_extra.py"
+        ],
+        [
+            "noa/pem_keymap.py",
+            "noa/pem_keymap.py"
+        ],
+        [
+            "noa/pem_keymap_default.py",
+            "noa/pem_keymap_default.py"
+        ],
+        [
+            "noa/pie.py",
+            "noa/pie.py"
+        ],
+        [
+            "noa/pngreader.py",
+            "noa/pngreader.py"
+        ],
+        [
+            "noa/re_findall.py",
+            "noa/re_findall.py"
+        ],
+        [
+            "noa/remote_python_call.py",
+            "noa/remote_python_call.py"
+        ],
+        [
+            "noa/uQR.py",
+            "noa/uQR.py"
+        ],
+        [
+            "noa/uping.py",
+            "noa/uping.py"
+        ],
+        [
+            "noa/wav_loader.py",
+            "noa/wav_loader.py"
+        ],
+        [
+            "noa/wav_play.py",
+            "noa/wav_play.py"
+        ],
+        [
+            "noa/xbmreader.py",
+            "noa/xbmreader.py"
         ],
         [
             "nudoc.py",
             "nudoc.py"
-        ],
-        [
-            "overlay.py",
-            "overlay.py"
-        ],
-        [
-            "pathlib.mpy",
-            "pathlib.mpy"
-        ],
-        [
-            "pdeck_complete.py",
-            "pdeck_complete.py"
         ],
         [
             "pem.py",
@@ -453,28 +505,8 @@
             "pem_client.py"
         ],
         [
-            "pem_extra.py",
-            "pem_extra.py"
-        ],
-        [
-            "pem_keymap.py",
-            "pem_keymap.py"
-        ],
-        [
-            "pem_keymap_default.py",
-            "pem_keymap_default.py"
-        ],
-        [
-            "pie.py",
-            "pie.py"
-        ],
-        [
             "ping.py",
             "ping.py"
-        ],
-        [
-            "pngreader.py",
-            "pngreader.py"
         ],
         [
             "pngviewer.py",
@@ -497,20 +529,12 @@
             "qr.py"
         ],
         [
-            "re_findall.py",
-            "re_findall.py"
-        ],
-        [
             "reader.py",
             "reader.py"
         ],
         [
             "recorder.py",
             "recorder.py"
-        ],
-        [
-            "remote_python_call.py",
-            "remote_python_call.py"
         ],
         [
             "rm.py",
@@ -561,28 +585,12 @@
             "types.mpy"
         ],
         [
-            "uQR.py",
-            "uQR.py"
-        ],
-        [
             "update_updater.py",
             "update_updater.py"
         ],
         [
-            "uping.py",
-            "uping.py"
-        ],
-        [
             "voicerecorder.py",
             "voicerecorder.py"
-        ],
-        [
-            "wav_loader.py",
-            "wav_loader.py"
-        ],
-        [
-            "wav_play.py",
-            "wav_play.py"
         ],
         [
             "wavfileplay.py",
@@ -601,10 +609,6 @@
             "xbm2xbmr.py"
         ],
         [
-            "xbmreader.py",
-            "xbmreader.py"
-        ],
-        [
             "xbmviewer.py",
             "xbmviewer.py"
         ],
@@ -614,10 +618,6 @@
         ]
     ],
     "files": [
-        {
-            "path": "uQR.py",
-            "md5": "0b8d6609b05ffcd7f09b2b5a67a3ae61"
-        },
         {
             "path": "pngviewer.py",
             "md5": "3cd0959acf88c1480a11e0b39bd3e441"
@@ -643,20 +643,12 @@
             "md5": "64048f6cdd6e5b2166fc3f3adae24606"
         },
         {
-            "path": "ble_manager.py",
-            "md5": "7745e1b76361d5dec3421a85e7cb00e7"
-        },
-        {
             "path": "tasks.py",
             "md5": "e2e6adb22232c91f29f530c695e0b675"
         },
         {
             "path": "invader.py",
             "md5": "917d0fca8c5864c5cef88408e9c858fc"
-        },
-        {
-            "path": "wav_play.py",
-            "md5": "40684ca6fc307a51c3958ba9200476a9"
         },
         {
             "path": "rmdir.py",
@@ -667,16 +659,8 @@
             "md5": "06c10a6eebf1608b311f47982c6dcc79"
         },
         {
-            "path": "benchmark.py",
-            "md5": "122a7416cceda6e884a0601bd487b49b"
-        },
-        {
             "path": "gdrive.py",
             "md5": "557095e4dd376ecaff5c9240f339aba4"
-        },
-        {
-            "path": "cpmv.py",
-            "md5": "9b1a003cdde3c2b5594035c55f16a380"
         },
         {
             "path": "ble_kb.py",
@@ -687,22 +671,6 @@
             "md5": "2594ffec911c19a9c9dbd90c47d5d419"
         },
         {
-            "path": "ntptime.mpy",
-            "md5": "6d3f69a214e19e1ff2222a5fd4f7c9aa"
-        },
-        {
-            "path": "pem_extra.py",
-            "md5": "531012dbde96354e6ad96c80cfa631e7"
-        },
-        {
-            "path": "mock_stream.py",
-            "md5": "9ad1cf3154fbb8eba6aa9be0caa9939d"
-        },
-        {
-            "path": "pathlib.mpy",
-            "md5": "93056f01e41b03013f9a9088ffa6f36d"
-        },
-        {
             "path": "journal.py",
             "md5": "a655f4af2c9d82f4b6b554e34ceda1b0"
         },
@@ -711,48 +679,20 @@
             "md5": "fc37d6137165f38a9747c9cac95ddc74"
         },
         {
-            "path": "mouse.py",
-            "md5": "cc9c2124e2b784b068c63413ae4010bb"
-        },
-        {
             "path": "ping.py",
             "md5": "4c633006ddb5699ba6345f810109177b"
-        },
-        {
-            "path": "uping.py",
-            "md5": "f01067a4d408cf410b55d6d898f4bfec"
         },
         {
             "path": "pem_client.py",
             "md5": "b0b6fd36349ebdfabd6b14240546a087"
         },
         {
-            "path": "pdeck_complete.py",
-            "md5": "0e0fbfe8f82ccd64948b5a33b4fb9bca"
-        },
-        {
             "path": "home.py",
             "md5": "62046125c3835c3fce38a2a3293c3fc3"
         },
         {
-            "path": "auto_connect.py",
-            "md5": "481765f13ca6150cc5754ae9fcd0c738"
-        },
-        {
-            "path": "anm.py",
-            "md5": "ac72746cf498194310a3bf5bd0a2b8b5"
-        },
-        {
             "path": "pwd.py",
             "md5": "48ed2b18b97aef71894e3472c4f44057"
-        },
-        {
-            "path": "datetime.mpy",
-            "md5": "37bcc9dee573648dbaaee6a6a006075b"
-        },
-        {
-            "path": "codec_config.py",
-            "md5": "41f79b63f5611c2d808712b2884e6ded"
         },
         {
             "path": "voicerecorder.py",
@@ -763,24 +703,12 @@
             "md5": "841d5b68b311ff13b08a78ca47b4151d"
         },
         {
-            "path": "font2d.py",
-            "md5": "f2fcda06d251a6a72edda748fa009dea"
-        },
-        {
             "path": "mv.py",
             "md5": "238690265928f863d00ff12d50a399e2"
         },
         {
-            "path": "esclib.py",
-            "md5": "932b3a1e5255e4ad809a409c7b7f63a2"
-        },
-        {
             "path": "gpt_rt.py",
             "md5": "d634148865c4b8eea451fdc54a70f787"
-        },
-        {
-            "path": "pngreader.py",
-            "md5": "e47d614b69a0f54ebddaddd6df0939ff"
         },
         {
             "path": "setjpf.py",
@@ -791,20 +719,8 @@
             "md5": "5ce66b202029550fd41da0b4f6ad24e9"
         },
         {
-            "path": "fontloader.py",
-            "md5": "618fe9ddc8d4cac98c28ab0584a5aa63"
-        },
-        {
-            "path": "imagelib.py",
-            "md5": "107a3f4aa06697988fa6530513abc15b"
-        },
-        {
             "path": "ls.py",
             "md5": "a19a4f0559a0b58d505dd0152b94f939"
-        },
-        {
-            "path": "pie.py",
-            "md5": "d233e93b150b887a51b1dc7ffe75ef23"
         },
         {
             "path": "cd.py",
@@ -819,10 +735,6 @@
             "md5": "89309ceca9ca6835893824ef5971ed9e"
         },
         {
-            "path": "re_findall.py",
-            "md5": "fe418d8d9411e1fea145234dc6fdcb98"
-        },
-        {
             "path": "stt.py",
             "md5": "5430c4049c2b18a63b81e40d82f6cb84"
         },
@@ -833,10 +745,6 @@
         {
             "path": "music.py",
             "md5": "8c63dfe15e45c6e1b4621bee6c842d68"
-        },
-        {
-            "path": "pem_keymap_default.py",
-            "md5": "a2bf6ab5bbb16b0718fc679966de43a5"
         },
         {
             "path": "docs.py",
@@ -851,16 +759,8 @@
             "md5": "375042ce44f86b5ff13fc7464e166e4f"
         },
         {
-            "path": "pem_keymap.py",
-            "md5": "6a03e82e4d7532b13a57fef75bfc18d8"
-        },
-        {
             "path": "setup.py",
             "md5": "bd18994b500681efe200d7c28538318b"
-        },
-        {
-            "path": "wav_loader.py",
-            "md5": "2ecea33b5fb892950ca0680f59530e7c"
         },
         {
             "path": "qr.py",
@@ -872,7 +772,7 @@
         },
         {
             "path": "pem.py",
-            "md5": "3abec4761517a8b3c0bf67565dfe6a00"
+            "md5": "3e20d44e326c14e2edd335227496b3af"
         },
         {
             "path": "recorder.py",
@@ -883,24 +783,8 @@
             "md5": "2dd464abafaca4eb9dfa05153ea965c2"
         },
         {
-            "path": "overlay.py",
-            "md5": "c50b150dfda3c53e7cea5cac2315f629"
-        },
-        {
-            "path": "download_drumkit_uzu.py",
-            "md5": "4f8246787e2b74750e8122fc5928eea4"
-        },
-        {
-            "path": "dsp_utils.py",
-            "md5": "5b1914030b20cc28c546d07cdd096cef"
-        },
-        {
             "path": "speaker_test.py",
             "md5": "eee61a80d394b77bccefb89984d357d2"
-        },
-        {
-            "path": "misc_utils.py",
-            "md5": "b65b71aebb90ea179422b40829e06f50"
         },
         {
             "path": "mkdir.py",
@@ -909,10 +793,6 @@
         {
             "path": "wavfileplay.py",
             "md5": "d550f26c0d211db88561df8dcc16e7db"
-        },
-        {
-            "path": "menu_ui.py",
-            "md5": "c74b1ba94a4ab7fd7e820b9e6cac1c21"
         },
         {
             "path": "cp.py",
@@ -927,20 +807,12 @@
             "md5": "d25730d654db7300ec710a432ac1f1e6"
         },
         {
-            "path": "remote_python_call.py",
-            "md5": "11236b47d7ae3c7992ca4f56c0a4a3e8"
-        },
-        {
             "path": "grep.py",
             "md5": "03e22f84500f11390c92d34952034db7"
         },
         {
             "path": "sync.py",
             "md5": "6340ea6a70b69b951236a1dadd6bb5f2"
-        },
-        {
-            "path": "xbmreader.py",
-            "md5": "46ea5b7afed5d1536b61db3a7f7d663c"
         },
         {
             "path": "zen_chamber.py",
@@ -985,6 +857,142 @@
         {
             "path": "font/u8g2_font_ncenR10_te.fnt",
             "md5": "5d2ecd665cf6ce71a181cc4728b00d4e"
+        },
+        {
+            "path": "noa/uQR.py",
+            "md5": "0b8d6609b05ffcd7f09b2b5a67a3ae61"
+        },
+        {
+            "path": "noa/ble_manager.py",
+            "md5": "7745e1b76361d5dec3421a85e7cb00e7"
+        },
+        {
+            "path": "noa/wav_play.py",
+            "md5": "40684ca6fc307a51c3958ba9200476a9"
+        },
+        {
+            "path": "noa/benchmark.py",
+            "md5": "122a7416cceda6e884a0601bd487b49b"
+        },
+        {
+            "path": "noa/cpmv.py",
+            "md5": "9b1a003cdde3c2b5594035c55f16a380"
+        },
+        {
+            "path": "noa/ntptime.mpy",
+            "md5": "6d3f69a214e19e1ff2222a5fd4f7c9aa"
+        },
+        {
+            "path": "noa/pem_extra.py",
+            "md5": "531012dbde96354e6ad96c80cfa631e7"
+        },
+        {
+            "path": "noa/mock_stream.py",
+            "md5": "9ad1cf3154fbb8eba6aa9be0caa9939d"
+        },
+        {
+            "path": "noa/pathlib.mpy",
+            "md5": "93056f01e41b03013f9a9088ffa6f36d"
+        },
+        {
+            "path": "noa/mouse.py",
+            "md5": "cc9c2124e2b784b068c63413ae4010bb"
+        },
+        {
+            "path": "noa/uping.py",
+            "md5": "f01067a4d408cf410b55d6d898f4bfec"
+        },
+        {
+            "path": "noa/pdeck_complete.py",
+            "md5": "0e0fbfe8f82ccd64948b5a33b4fb9bca"
+        },
+        {
+            "path": "noa/auto_connect.py",
+            "md5": "481765f13ca6150cc5754ae9fcd0c738"
+        },
+        {
+            "path": "noa/anm.py",
+            "md5": "ac72746cf498194310a3bf5bd0a2b8b5"
+        },
+        {
+            "path": "noa/datetime.mpy",
+            "md5": "37bcc9dee573648dbaaee6a6a006075b"
+        },
+        {
+            "path": "noa/codec_config.py",
+            "md5": "41f79b63f5611c2d808712b2884e6ded"
+        },
+        {
+            "path": "noa/font2d.py",
+            "md5": "f2fcda06d251a6a72edda748fa009dea"
+        },
+        {
+            "path": "noa/esclib.py",
+            "md5": "932b3a1e5255e4ad809a409c7b7f63a2"
+        },
+        {
+            "path": "noa/pngreader.py",
+            "md5": "e47d614b69a0f54ebddaddd6df0939ff"
+        },
+        {
+            "path": "noa/fontloader.py",
+            "md5": "618fe9ddc8d4cac98c28ab0584a5aa63"
+        },
+        {
+            "path": "noa/imagelib.py",
+            "md5": "107a3f4aa06697988fa6530513abc15b"
+        },
+        {
+            "path": "noa/pie.py",
+            "md5": "d233e93b150b887a51b1dc7ffe75ef23"
+        },
+        {
+            "path": "noa/re_findall.py",
+            "md5": "fe418d8d9411e1fea145234dc6fdcb98"
+        },
+        {
+            "path": "noa/pem_keymap_default.py",
+            "md5": "a2bf6ab5bbb16b0718fc679966de43a5"
+        },
+        {
+            "path": "noa/pem_keymap.py",
+            "md5": "6a03e82e4d7532b13a57fef75bfc18d8"
+        },
+        {
+            "path": "noa/wav_loader.py",
+            "md5": "2ecea33b5fb892950ca0680f59530e7c"
+        },
+        {
+            "path": "noa/erow.py",
+            "md5": "e3b949c8ef36f7622bdfb94eb6e90631"
+        },
+        {
+            "path": "noa/overlay.py",
+            "md5": "c50b150dfda3c53e7cea5cac2315f629"
+        },
+        {
+            "path": "noa/download_drumkit_uzu.py",
+            "md5": "4f8246787e2b74750e8122fc5928eea4"
+        },
+        {
+            "path": "noa/dsp_utils.py",
+            "md5": "5b1914030b20cc28c546d07cdd096cef"
+        },
+        {
+            "path": "noa/misc_utils.py",
+            "md5": "b65b71aebb90ea179422b40829e06f50"
+        },
+        {
+            "path": "noa/menu_ui.py",
+            "md5": "c74b1ba94a4ab7fd7e820b9e6cac1c21"
+        },
+        {
+            "path": "noa/remote_python_call.py",
+            "md5": "11236b47d7ae3c7992ca4f56c0a4a3e8"
+        },
+        {
+            "path": "noa/xbmreader.py",
+            "md5": "46ea5b7afed5d1536b61db3a7f7d663c"
         },
         {
             "path": "data/ghost1.xbmr",

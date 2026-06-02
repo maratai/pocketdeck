@@ -206,7 +206,7 @@ for _m in ('socket', 'fontloader'):
 import sys, importlib.abc, importlib.util
 from js import emulator_fetch_text
 
-_LIB_DIRS = ['../lib/', '../lib/examples/']
+_LIB_DIRS = ['../lib/', '../lib/noa/', '../lib/examples/']
 _src_cache = {}
 
 def _fetch_lib(name):
