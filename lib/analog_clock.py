@@ -178,9 +178,12 @@ class analog_clock:
   def draw_oneline_help(self):
     self.v.set_draw_color(1)
     self.v.set_font('u8g2_font_profont15_mf')
-    help_copy_str = 'C - Copy date, BS or B button - Toggle Timer '
+    help_copy_str = 'C - Copy date, BS or B button - Toggle Timer'
+    help_copy_str2 = 'arrow keys: move date in calendar'
     copy_str_width = self.v.get_str_width(help_copy_str) + 1
+    copy_str_width2 = self.v.get_str_width(help_copy_str2) + 1
     self.v.draw_str(pdeck.get_screen_size()[0] - copy_str_width, self.coffset[1] + 195,help_copy_str)
+    self.v.draw_str(pdeck.get_screen_size()[0] - copy_str_width2, self.coffset[1] + 180,help_copy_str2)
 
         
   def update(self,e):

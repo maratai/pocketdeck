@@ -1,3 +1,20 @@
+## Release Note June 3, 2026
+
+## Firmware
+
+- Shift + tab ('\x1b[Z')
+
+## Application
+
+- pem_open command added, this command will open a file in existing pem instance.
+
+- gpt_rt command now can send keys, take screenshot.
+
+- 
+
+- some utility commands (head, tail, diff) were added.
+
+
 ## Release Note June 2, 2026
 
 ## Firmware

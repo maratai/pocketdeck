@@ -4,6 +4,22 @@
 
 import sys
 
+# When launched as `python -m pem` (or `pem.py`) this file runs as __main__, so
+# erow's `from pem import _hl_line` would re-import it under the name `pem` and
+# hit a circular import. Alias `pem` to the running __main__ module so that
+# import resolves to us. PC-only: on the device pem is imported as `pem`.
+if __name__ == '__main__':
+  sys.modules.setdefault('pem', sys.modules['__main__'])
+
+# const() is a bare builtin on the device's MicroPython, but not on CPython.
+# Define a no-op mock for PC only (leaving the device path untouched) so that
+# module-level uses like `IM_EN = const(1)` work even when pdeck imports
+# successfully on PC -- e.g. running against the emulator stubs -- and the
+# CPython fallback block below is skipped.
+if sys.implementation.name != 'micropython':
+  def const(x):
+    return x
+
 # The same source runs on the Pocket Deck (MicroPython) and on desktop CPython
 # (for development and testing). The device exposes a native `pdeck` module; if
 # it can't be imported we're on CPython, so set up a pure-Python fallback layer
@@ -17,9 +33,6 @@ except ImportError:
   import time, types, unicodedata
 
   # MicroPython exposes these as builtins; provide CPython equivalents.
-  def const(x):
-    return x
-
   if not hasattr(time, 'sleep_ms'):
     time.sleep_ms = lambda ms: time.sleep(ms / 1000)
   if not hasattr(time, 'ticks_us'):
@@ -501,6 +514,15 @@ class editor:
     self.v.print(el.raw_mode(False))
     #self.v.print(el.wraparound_mode(False))
     
+  def pub_open_file(self, filename, linenum=1, colnum=1):
+    # Remote-control entry point (see the pem_open command). This runs on a
+    # different task than the editor loop, so it must NOT touch screen/render
+    # state directly. Instead it queues the request onto open_pending_list,
+    # which the editor's own read loop drains as a synthesized C-x C-f
+    # (open-file) key. linenum/colnum are 1-based, matching the open-file
+    # handler and the desktop pem_client protocol.
+    open_pending_list.append((filename, linenum, colnum))
+
   def open(self, filename, linenum=0, colnum=0):
     self.file = editor_file(self.v, filename, self.text_height, self.text_width - 1, self.tab_size)
     self.file_row, self.file_col = self.file.open(linenum, colnum)
@@ -2973,6 +2995,12 @@ def main(vs, args_in):
 
   try: 
     e = editor(v, args.japanese)
+    # Register the editor for remote control so the pem_open command can open
+    # files in this already-running instance (app_list['obj']). vs is None on
+    # desktop CPython, where the pem_client TCP server provides the same
+    # capability instead.
+    if vs is not None:
+      vs.register_module(e)
     e.setup_screen()
     e.open(filename, linenum, colnum)
     e.refresh_screen()

@@ -146,6 +146,7 @@ class NudocGame:
   def __init__(self, vs, difficulty, board_file=None):
     self.vs = vs
     self.v = vs.v
+    self.show_cursor = True
     self.el = elib.esclib()
     self.m = mouse.mouse(self.v)
     self.m.set_limit([GRID_X, GRID_Y], [GRID_X + CELL * 9, GRID_Y + CELL * 9])
@@ -1144,6 +1145,8 @@ class NudocGame:
     elif k == KEY_BS:
       self.note_mode = not self.note_mode
       self.note_mode_anm = 40
+    elif k == b'c':
+      self.show_cursor = not self.show_cursor
     elif k == b'q':
       self.state = STATE_QUIT_DIALOG
     elif k >= b'1' and k <= b'9':
@@ -1217,7 +1220,8 @@ class NudocGame:
       return
 
     self.draw_status()
-    self.draw_grid_highlight()
+    if self.show_cursor:
+      self.draw_grid_highlight()
     self.draw_line_box_anims()
     self.draw_notes()
     self.draw_numbers()

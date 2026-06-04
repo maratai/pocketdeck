@@ -7,6 +7,7 @@ import gc
 import esclib
 import setuni
 import auto_connect
+import pngwriter
 
 _el = esclib.esclib()
 
@@ -91,6 +92,7 @@ def build_session_instructions(model, file_list, references, app_list=None, agen
 
   if agent:
     text += "\nUse command_with_return to look up information before answering (e.g. list files with 'ls /sd/Documents/word*', read a file with 'cat /path'). Always call it when the user asks about files or device state.\nUse write_file to create or save files on the device filesystem before launching an app that needs them.\nWhen you get a logical question which can be solved by writing code, you can write Micropython code temporarily on /sd/py, filename starts temp_*, then delete after the creation (rm command). \n"
+    text += "\nYou can see and drive other apps running on the device. Use list_running_apps to see which app is on which screen. Use switch_screen to bring a screen to the foreground. Use capture_screen to take a screenshot of a screen and look at it (it is sent to you as an image) it take some time (about 0.3s), so requesting screenshot at high rate is not recommended. Use send_keys to type into the app currently in the foreground; include a newline or set enter=true to press Enter, and use escape sequences for special keys (Up=\\x1b[A, Down=\\x1b[B, Right=\\x1b[C, Left=\\x1b[D, Esc=\\x1b, Backspace=\\x08, Ctrl-X=\\x18). After acting, capture_screen again to confirm the result before continuing.\n"
     if app_list:
       text += "\nUse launch_app to open apps. Pass optional args (e.g. a file path) to open a specific file. Available apps:\n"
       for item in app_list:
@@ -109,6 +111,17 @@ def build_session_instructions(model, file_list, references, app_list=None, agen
       text += "\n----- reference %d -----\n%s\n" % (i, item)
 
   return text
+
+@micropython.viper
+def _ws_mask(dst: ptr8, src: ptr8, src_off: int, n: int, mask: ptr8):
+  # XOR-mask n bytes of src (starting at src_off) into dst[0:n]. The WebSocket
+  # mask repeats every 4 bytes keyed on the global byte position, so we index
+  # the 4-byte mask with (src_off + i) & 3 to stay correct across chunks.
+  i = 0
+  while i < n:
+    g = src_off + i
+    dst[i] = src[g] ^ mask[g & 3]
+    i += 1
 
 class SimpleWS:
   def __init__(self, host, path, port=443, headers=None):
@@ -177,25 +190,42 @@ class SimpleWS:
         raise e
     return res
 
-  def recv(self):
-    try:
-      header = self.sock.read(2)
+  def _recv_frame(self, block=False):
+    # Reads a single WebSocket frame and returns (fin, opcode, payload), or
+    # None when no data is available yet (only when block=False). When block
+    # is True we are mid-message (waiting for continuation frames) and must
+    # wait for the next frame rather than abandoning the partial message.
+    while True:
+      try:
+        header = self.sock.read(2)
+      except OSError as e:
+        if e.args[0] == 11:
+          if block:
+            time.sleep(0.005)
+            continue
+          return None
+        raise e
+      except Exception as e:
+        if "MBEDTLS_ERR_SSL_BAD_INPUT_DATA" in str(e):
+          if block:
+            time.sleep(0.005)
+            continue
+          return None
+        raise e
+
       if not header:
+        if block:
+          time.sleep(0.005)
+          continue
         return None
-    except OSError as e:
-      if e.args[0] == 11:
-        return None
-      raise e
-    except Exception as e:
-      msg = str(e)
-      if "MBEDTLS_ERR_SSL_BAD_INPUT_DATA" in msg:
-        return None
-      raise e
+      break
 
     if len(header) < 2:
-      return None
+      # Got a partial header; the rest is guaranteed to follow.
+      header = bytes(header) + bytes(self._recv_exact(2 - len(header)))
 
     b1, b2 = header[0], header[1]
+    fin = b1 & 0x80
     opcode = b1 & 0x0f
 
     has_mask = b2 & 0x80
@@ -213,23 +243,43 @@ class SimpleWS:
     if has_mask:
       mask = self._recv_exact(4)
 
-    payload = self._recv_exact(length)
+    payload = self._recv_exact(length) if length else bytearray()
     if has_mask:
       for i in range(length):
         payload[i] ^= mask[i % 4]
 
-    if opcode == 8:
-      self.sock.close()
-      return None
+    return fin, opcode, payload
 
-    if opcode == 9:
-      self.send(payload, opcode=10)
-      return self.recv()
+  def recv(self):
+    # Reassembles fragmented messages: a logical message may span a leading
+    # data frame (opcode 1/2, FIN=0) plus continuation frames (opcode 0) until
+    # FIN is set. Control frames (ping/pong/close) may be interleaved between
+    # fragments and are handled without disturbing the message being assembled.
+    data = None
+    while True:
+      frame = self._recv_frame(block=data is not None)
+      if frame is None:
+        return None
+      fin, opcode, payload = frame
 
-    if opcode == 10:
-      return None
+      if opcode == 8:        # close
+        self.sock.close()
+        return None
+      if opcode == 9:        # ping
+        self.send(payload, opcode=10)
+        continue
+      if opcode == 10:       # pong
+        continue
 
-    return payload
+      if opcode == 0:        # continuation
+        if data is None:
+          continue           # stray continuation; ignore
+        data += payload
+      else:                  # 1 = text, 2 = binary: start of a message
+        data = payload
+
+      if fin:
+        return data
 
   def _send_exact(self, data):
     view = memoryview(data)
@@ -279,11 +329,9 @@ class SimpleWS:
 
     self._send_exact(mask)
 
-    view = memoryview(data)
     for offset in range(0, length, 1024):
       chunk_len = min(1024, length - offset)
-      for i in range(chunk_len):
-        self.mask_buf[i] = view[offset + i] ^ mask[(offset + i) % 4]
+      _ws_mask(self.mask_buf, data, offset, chunk_len, mask)
       self._send_exact(self.mask_mv[:chunk_len])
 
   def close(self):
@@ -307,11 +355,11 @@ class RealtimeAgent:
     self.pending_fn_calls = {}
     self.sample_rate = 24000
 
-    self.mic_buf_size = 6000
+    self.mic_buf_size = 10000
     self.mic_bufs = [memoryview(bytearray(self.mic_buf_size)), memoryview(bytearray(self.mic_buf_size))]
     self.mic_ready_idx = -1
 
-    self.spk_buf_size = 6000
+    self.spk_buf_size = 8000
     self.spk_bufs = [memoryview(bytearray(self.spk_buf_size)), memoryview(bytearray(self.spk_buf_size))]
     self.zero_buf = memoryview(bytearray(self.spk_buf_size))
 
@@ -324,7 +372,11 @@ class RealtimeAgent:
     self._ring_rpos = 0  # written only by callback
 
     self.buffering = True
-    self.buffer_threshold = 16000
+    # Pre-roll cushion before playback starts. Must be several spk buffers so a
+    # late network burst doesn't drain the ring below one buffer (= underrun).
+    # 4 buffers ≈ 0.83 s. Raise toward 6x if the link is jittery; lower for less
+    # latency before the AI voice starts.
+    self.buffer_threshold = self.spk_buf_size * 3
     self.mute_until = 0
     self.mic_muted = False
     self.vs_active = None
@@ -342,6 +394,12 @@ class RealtimeAgent:
     self.user_text_printed = False
     self.agent_executed_text = ""
     self.fn_calls_executed = 0
+
+    # Reused across screen captures: 400x240 1-bit XBM = 50 bytes/row * 240.
+    self.capture_buf = bytearray(12000)
+    # base64 PNG waiting to be sent as a user image once the current response
+    # closes (sending a user item mid-response is rejected by the server).
+    self.pending_image = None
 
   @micropython.native
   def mic_callback(self, index):
@@ -439,7 +497,7 @@ class RealtimeAgent:
         {
           "type": "function",
           "name": "command_with_return",
-          "description": "Run a text command and return its output. Use to answer questions about files or content. Supported: ls (list files, supports glob patterns like 'word*'), cat (read file), rm, mv, cp, grep (search in files), and curl (get content from web). You can't use pipe '|', it's not Linux, do not use the undocumented options. Detailed usage are stated in README.md..",
+          "description": "Run a text command and return its output. Use to answer questions about files or content. Supported: ls (list files, supports glob patterns like 'word*'; 'ls -r path' lists recursively), cat (read file), head, tail, rm, mv, cp, mkdir, rmdir, grep (search in files), ping (check network reachability), dic (dictionary lookup), curl (get content from web), and 'analog_clock_set_timer <minutes>' (set a countdown timer). You can't use pipe '|', it's not Linux, do not use the undocumented options. Detailed usage are stated in README.md..",
           "parameters": {
             "type": "object",
             "properties": {
@@ -488,6 +546,69 @@ class RealtimeAgent:
               }
             },
             "required": ["path", "content"]
+          }
+        },
+        {
+          "type": "function",
+          "name": "list_running_apps",
+          "description": "List the apps currently running and which screen number each is on. Use this before switching, capturing, or driving an app.",
+          "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": []
+          }
+        },
+        {
+          "type": "function",
+          "name": "switch_screen",
+          "description": "Bring a screen to the foreground so it becomes active. Required before capturing or sending keys to that screen. Note the screen number in the functionis 0-based, however, scren number shown in GUI is 1-base. so if user wants to switch screen 2, send 1 as an argument.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "screen": {
+                "type": "integer",
+                "description": "Screen number to switch to (0-9)"
+              }
+            },
+            "required": ["screen"]
+          }
+        },
+        {
+          "type": "function",
+          "name": "capture_screen",
+          "description": "Take a screenshot of a screen and send it to you as an image so you can read what is on it. If screen is given, switches to it first.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "screen": {
+                "type": "integer",
+                "description": "Optional screen number to switch to and capture. If omitted, captures the current foreground screen."
+              }
+            },
+            "required": []
+          }
+        },
+        {
+          "type": "function",
+          "name": "send_keys",
+          "description": "Type text / keystrokes into the foreground app. Use escape sequences for special keys (arrows \\x1b[A/B/C/D, Esc \\x1b, Backspace \\x08, Ctrl-X \\x18).",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "text": {
+                "type": "string",
+                "description": "Characters to inject as keyboard input"
+              },
+              "screen": {
+                "type": "integer",
+                "description": "Optional screen number to switch to before typing (input only reaches the foreground app)"
+              },
+              "enter": {
+                "type": "boolean",
+                "description": "If true, press Enter (carriage return) after the text"
+              }
+            },
+            "required": ["text"]
           }
         }
       ]
@@ -644,11 +765,123 @@ class RealtimeAgent:
     except Exception as e:
       return "Error: %s" % str(e)
 
+  def execute_list_running_apps(self, arguments):
+    lines = [ "screen 0: Python REPL" ]
+    try:
+      apps_scnums = []
+      for key in pu.app_list:
+        app = pu.app_list[key]
+        name = app.get('name', '?') if isinstance(app, dict) else str(app)
+        lines.append("screen %s: %s" % (key, name))
+        apps_scnums.append(key)
+      for i in range(1, 10):
+        if pdeck.cmd_exists(i) and i not in apps_scnums:
+          lines.append(f"screen {i}: command line shell")
+      lines.sort()
+      print(lines)
+    except Exception as e:
+      return "Error: %s" % str(e)
+    if not lines:
+      return "(no running apps)"
+    return "\n".join(lines)
+
+  def execute_switch_screen(self, arguments):
+    try:
+      args = ujson.loads(arguments) if arguments else {}
+      scnum = int(args.get("screen"))
+    except:
+      return "Error: invalid arguments"
+    pdeck.change_screen(scnum)
+    pdeck.show_screen_num()
+    return "Switched to screen %d" % scnum
+
+  def execute_capture_screen(self, arguments):
+    try:
+      args = ujson.loads(arguments) if arguments else {}
+    except:
+      return "Error: invalid arguments"
+    scnum = args.get("screen", None)
+    if scnum is not None:
+      try:
+        scnum = int(scnum)
+      except:
+        return "Error: invalid screen"
+      pdeck.change_screen(scnum)
+      pdeck.show_screen_num()
+      # Give the target one frame to render into the main buffer before capture.
+      pdeck.delay_tick(40)
+    target = "screen %d" % scnum if scnum is not None else "the current screen"
+    self._mute_audio(800)
+    try:
+      v = pdeck.vscreen()
+      # take_screenshot captures at the display loop's safe point (no tearing)
+      # and blocks until the frame is ready. Must run off the display thread,
+      # which it does here (gpt_rt's own thread).
+      if not v.take_screenshot(0, 0, 400, 240, self.capture_buf):
+        return "Error: screenshot timed out (display busy or screen not active)"
+      png = pngwriter.encode_mono_xbm(self.capture_buf, 400, 240)
+      b64 = ubinascii.b2a_base64(png).decode().strip()
+    except Exception as e:
+      return "Error capturing screen: %s" % str(e)
+    # Defer the image send until response.done so we don't add a user item while
+    # a response is still active (which the server rejects).
+    self.pending_image = b64
+    return "Captured %s. The screenshot is attached as an image; look at it and describe what you see." % target
+
+  def execute_send_keys(self, arguments):
+    try:
+      args = ujson.loads(arguments) if arguments else {}
+    except:
+      return "Error: invalid arguments"
+    text = args.get("text", "")
+    if args.get("enter"):
+      text += "\r"
+    if not text:
+      return "Error: no text specified"
+    scnum = args.get("screen", None)
+    if scnum is not None:
+      try:
+        pdeck.change_screen(int(scnum))
+        pdeck.delay_tick(40)
+      except:
+        return "Error: invalid screen"
+    try:
+      v = pdeck.vscreen()
+      v.send_char(text)
+      print(text.encode('utf-8'))
+    except Exception as e:
+      return "Error sending keys: %s" % str(e)
+    return "Sent %d key(s)" % len(text)
+
+  def send_image_item(self, b64_png):
+    evt = {
+      "type": "conversation.item.create",
+      "item": {
+        "type": "message",
+        "role": "user",
+        "content": [
+          {
+            "type": "input_image",
+            "image_url": "data:image/png;base64," + b64_png
+          }
+        ]
+      }
+    }
+    self.ws.send(ujson.dumps(evt))
+
   def execute_function_call(self, call_id, name, arguments):
     if name == "command_with_return":
       return self.execute_command_with_return(arguments)
     if name == "write_file":
       return self.execute_write_file(arguments)
+    if name == "list_running_apps":
+      return self.execute_list_running_apps(arguments)
+    if name == "switch_screen":
+      return self.execute_switch_screen(arguments)
+    if name == "capture_screen":
+      return self.execute_capture_screen(arguments)
+    if name == "send_keys":
+      return self.execute_send_keys(arguments)
     if name != "launch_app":
       return "Unknown function: %s" % name
     try:
@@ -742,7 +975,12 @@ class RealtimeAgent:
         if not arguments and call_id in self.pending_fn_calls:
           arguments = self.pending_fn_calls[call_id].get("args", "")
         print("\n%s[Call]%s %s %s" % (_el.bold(), _el.bold_off(), fn_name, arguments), file=self.vs)
-        result = self.execute_function_call(call_id, fn_name, arguments)
+        # Always send a function result, even on failure — otherwise the call
+        # never closes and the session hangs waiting for its output.
+        try:
+          result = self.execute_function_call(call_id, fn_name, arguments)
+        except Exception as e:
+          result = "Error: %s" % str(e)
         print("%s[Result]%s %s" % (_el.bold(), _el.bold_off(), result[:200]), file=self.vs)
         self.send_function_result(call_id, result)
         self.fn_calls_executed += 1
@@ -758,6 +996,16 @@ class RealtimeAgent:
       pass  # print("\n[Session updated]", file=self.vs)
 
     elif mtype == "response.done":
+      resp = msg.get("response", {})
+      status = resp.get("status", "")
+      if status and status != "completed":
+        sd = resp.get("status_details", {})
+        print("\n%s[Response %s]%s %s" % (_el.bold(), status, _el.bold_off(), ujson.dumps(sd)), file=self.vs)
+      # Now that no response is active, attach a pending screenshot (if any) and
+      # ask the model to respond to it.
+      if self.pending_image is not None:
+        self.send_image_item(self.pending_image)
+        self.pending_image = None
       if self.fn_calls_executed > 0:
         self.ws.send(ujson.dumps({"type": "response.create"}))
         self.fn_calls_executed = 0
@@ -791,7 +1039,10 @@ class RealtimeAgent:
     print("\n%s[Mic %s]%s" % (_el.bold(), "MUTED" if self.mic_muted else "ON", _el.bold_off()), file=self.vs)
 
   def loop(self):
-    active = self.vs.v.active
+    # In agent mode gpt_rt is a background helper that drives other screens, so
+    # it keeps listening even when its own screen is not the foreground. Plain
+    # voice mode still gates on the active screen.
+    active = True if self.agent else self.vs.v.active
     if active != self.vs_active:
       self.vs_active = active
       self._send_create_response(active and not self.mic_muted)
@@ -800,7 +1051,7 @@ class RealtimeAgent:
       idx = self.mic_ready_idx
       self.mic_ready_idx = -1
 
-      if not self.mic_muted and self.vs.v.active:
+      if not self.mic_muted and active:
         if time.ticks_diff(time.ticks_ms(), self.last_play_time) < 400:
           pass
         else:
@@ -825,7 +1076,11 @@ class RealtimeAgent:
         self.process_event(msg)
         if msg.get("type") == "response.output_audio.delta":
           audio_frames += 1
-          break
+          # Drain a few audio deltas per iteration so the ring refills quickly,
+          # but cap it so the scheduler still runs the audio callback between
+          # bursts (the main loop's sleep yields the GIL).
+          if audio_frames >= 3:
+            break
       except Exception as e:
         print("Message Error:", e, "Frame:", frame[:80], file=self.vs)
 

@@ -238,6 +238,8 @@ class Vscreen:
 
   def capture_as_xbm(self, x, y, w, h, buf): pass
 
+  def take_screenshot(self, x, y, w, h, buf): return True
+
   # ── buffers (no-ops; renderer clears each frame) ──
   def clear_buffer(self): pass
   def switch_buffer(self, n): pass

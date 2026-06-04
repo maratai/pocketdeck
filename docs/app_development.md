@@ -253,7 +253,8 @@ Pocket deck supports XBM and the original XBMR format for image. XBMR is binary 
 
 - `draw_image(x, y, image, frame)` - Higher level function to draw image. image is tuple returned by xbmreader.read() or read_xbmr(), which is (name, width, height, data, num_of_frames).
 - `draw_xbm(x, y, w, h, xbm_data)` - Draw XBM. xbm_data is binary data. This function remains for compatibility. Use draw_image().
-- `capture_as_xbm(x, y, w, h, buffer)` - Capture screen area to XBM format
+- `capture_as_xbm(x, y, w, h, buffer)` - Capture screen area to XBM format immediately. Reads the framebuffer at call time, so it can tear if the display task is mid-frame. `x` is rounded down to a multiple of 8; `buffer` must be at least `((w+7)>>3) * h` bytes.
+- `take_screenshot(x, y, w, h, buffer)` - Like `capture_as_xbm`, but captures at the exact safe point in the display loop (no tearing) and **blocks** until the frame is ready. Returns `True` on success, `False` on timeout or if this vscreen is not the active screen. **Must not be called from inside an `update()` draw callback** — that runs on the display task and would deadlock; call it from a separate app thread instead. Same buffer/size rules as `capture_as_xbm`.
 - `draw_polygon_texture(points_array, map_array, image_tuple, [frame_index])` - Draws an affine textured polygon. 
   `points_array`: `array('h', ...)` of `[x1, x2, ..., xn, y1, y2, ..., yn]`.
   `map_array`: `array('h', ...)` of texture coordinates `[u1, u2, ..., un, v1, v2, ..., vn]`.
@@ -318,7 +319,7 @@ Callback function to be called for every frame update.
 
 - `send_char(data)` Inject character data as keyboard input.
 
-- `send_key_event(key, modifier, event_type)` Inject a keyboard event.
+- `send_key_event(keycode, modifier, event_type)` Inject a keyboard event. It's hardware keycode, not ascii code. See hid_usage_keyboard for keycode list and modifier list.
 
 - `read_nb(max_bytes)` Non-blocking keyboard read. max_bytes can be up to 29. Returns tuple`(bytes_read, data)` where data is a string. Use `encode('ascii')` to convert to bytes. Special keys are escape sequences, e.g. Up arrow is `b'\x1b[A'`. **For blocking reads from app code, use `vs.read(n)` on the stream instead.**
 

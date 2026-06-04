@@ -325,8 +325,16 @@
             "gpt_rt.py"
         ],
         [
+            "gptn.py",
+            "gptn.py"
+        ],
+        [
             "grep.py",
             "grep.py"
+        ],
+        [
+            "head.py",
+            "head.py"
         ],
         [
             "home.py",
@@ -413,6 +421,10 @@
             "noa/imagelib.py"
         ],
         [
+            "noa/jp_input.py",
+            "noa/jp_input.py"
+        ],
+        [
             "noa/menu_ui.py",
             "noa/menu_ui.py"
         ],
@@ -465,6 +477,14 @@
             "noa/pngreader.py"
         ],
         [
+            "noa/pngwriter.mpy",
+            "noa/pngwriter.mpy"
+        ],
+        [
+            "noa/pngwriter.py",
+            "noa/pngwriter.py"
+        ],
+        [
             "noa/re_findall.py",
             "noa/re_findall.py"
         ],
@@ -503,6 +523,10 @@
         [
             "pem_client.py",
             "pem_client.py"
+        ],
+        [
+            "pem_open.py",
+            "pem_open.py"
         ],
         [
             "ping.py",
@@ -573,6 +597,10 @@
             "sync.py"
         ],
         [
+            "tail.py",
+            "tail.py"
+        ],
+        [
             "tasks.py",
             "tasks.py"
         ],
@@ -640,7 +668,11 @@
         },
         {
             "path": "analog_clock.py",
-            "md5": "64048f6cdd6e5b2166fc3f3adae24606"
+            "md5": "baf7d053000166d79fbe9d9e6cee78d5"
+        },
+        {
+            "path": "head.py",
+            "md5": "d4f2fc0733a1e84d25bc277b07e952ce"
         },
         {
             "path": "tasks.py",
@@ -656,7 +688,7 @@
         },
         {
             "path": "nudoc.py",
-            "md5": "06c10a6eebf1608b311f47982c6dcc79"
+            "md5": "6826bde01418dadea70c089040665f25"
         },
         {
             "path": "gdrive.py",
@@ -683,8 +715,12 @@
             "md5": "4c633006ddb5699ba6345f810109177b"
         },
         {
+            "path": "pem_open.py",
+            "md5": "163d423145bd00084e70573a0298f719"
+        },
+        {
             "path": "pem_client.py",
-            "md5": "b0b6fd36349ebdfabd6b14240546a087"
+            "md5": "8effa3217c4e54ec12dd092672bc0379"
         },
         {
             "path": "home.py",
@@ -708,11 +744,15 @@
         },
         {
             "path": "gpt_rt.py",
-            "md5": "d634148865c4b8eea451fdc54a70f787"
+            "md5": "904eaabec2f60dee3230cb0c501da4a6"
         },
         {
             "path": "setjpf.py",
             "md5": "b1f03be065255058750e1241d681a30b"
+        },
+        {
+            "path": "gptn.py",
+            "md5": "2a6c9d4fca1d1294aa7ba44984fe1e5f"
         },
         {
             "path": "gpt.py",
@@ -725,6 +765,10 @@
         {
             "path": "cd.py",
             "md5": "badfff2af2b5fe59e251b4bfea38db2d"
+        },
+        {
+            "path": "tail.py",
+            "md5": "b21517883000b3bcbe8cd549729c260a"
         },
         {
             "path": "wavtest.py",
@@ -772,7 +816,7 @@
         },
         {
             "path": "pem.py",
-            "md5": "3e20d44e326c14e2edd335227496b3af"
+            "md5": "4ea573b33f0e4d6eb57875a560a355d7"
         },
         {
             "path": "recorder.py",
@@ -899,6 +943,10 @@
             "md5": "cc9c2124e2b784b068c63413ae4010bb"
         },
         {
+            "path": "noa/pngwriter.mpy",
+            "md5": "0705e3e313a4cc66d424b701c2a34d67"
+        },
+        {
             "path": "noa/uping.py",
             "md5": "f01067a4d408cf410b55d6d898f4bfec"
         },
@@ -951,6 +999,10 @@
             "md5": "fe418d8d9411e1fea145234dc6fdcb98"
         },
         {
+            "path": "noa/pngwriter.py",
+            "md5": "6ece06381d6ef8cde34b1bdefd987bdc"
+        },
+        {
             "path": "noa/pem_keymap_default.py",
             "md5": "a2bf6ab5bbb16b0718fc679966de43a5"
         },
@@ -961,6 +1013,10 @@
         {
             "path": "noa/wav_loader.py",
             "md5": "2ecea33b5fb892950ca0680f59530e7c"
+        },
+        {
+            "path": "noa/jp_input.py",
+            "md5": "c2b8b40b96bf198060398f2c4629609f"
         },
         {
             "path": "noa/erow.py",
