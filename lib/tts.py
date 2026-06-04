@@ -1,4 +1,4 @@
-import gpt as gptlib
+import gpt_l as gptlib
 import argparse
 import os
 import struct

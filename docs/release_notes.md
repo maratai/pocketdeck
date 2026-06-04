@@ -2,7 +2,7 @@
 
 ## Firmware
 
-- Shift + tab ('\x1b[Z')
+- firmware sends proper keycode for Shift + tab ('\x1b[Z')
 
 ## Application
 
@@ -10,10 +10,14 @@
 
 - gpt_rt command now can send keys, take screenshot.
 
-- 
-
 - some utility commands (head, tail, diff) were added.
 
+### gpt
+
+- Conversation mode -C is added.
+- In agent mode, it uses function call.
+- Now AI can read file, execute command, and switch screen and take a screenshot.
+- Old version of gpt is available as gpt_l.
 
 ## Release Note June 2, 2026
 

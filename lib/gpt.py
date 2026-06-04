@@ -1,910 +1,1472 @@
-import network, socket
-import auto_connect
-import codec_config
+# gpt.py - ChatGPT client with native function calling (tools) instead of the
+# markdown code-block "agent mode" used by the legacy gpt_l.py.
+#
+# This reuses gpt_l.py (the legacy frontend, imported below as `gpt`) for all
+# the shared plumbing (api key, logging, STT/TTS, the thinking animation,
+# message formatting, etc.) and adds:
+#   - the function tools that were implemented for gpt_rt.py (command_with_return,
+#     write_file, launch_app, list_running_apps, switch_screen, capture_screen,
+#     send_keys)
+#   - a function-calling loop over the Responses API
+#   - an optional conversation mode (-C) that keeps the context across turns
+#     using previous_response_id (server-side state).
+
 import ujson
-import wifi
-import time
-import math
-import urequests as requests
-import pdeck
-import pdeck_utils as pu
-import esclib as elib
-import argparse
 import ubinascii
-import audio
-import wav_play
-import recorder
-import setuni
+import time
 import os
+import sys
+import io
+import argparse
 import re
 import gc
+import pdeck
+import pdeck_utils as pu
+import pngwriter
+import setuni
+import auto_connect
+import gpt_l as gpt
 
-API_KEY_FILENAME = "/config/openai_api_key"
+# Optional Japanese IME (romaji -> kana -> kanji), shared with pem. If the
+# module is unavailable the conversation prompt simply stays ASCII-only.
+try:
+  import jp_input
+except ImportError:
+  jp_input = None
 
-def file_exists(name):
-  if name == None:
-    return False
-  try:
-    os.stat(name)
-    return True
-  except OSError:
-    return False
+# Used to auto-clear the "result ready" LED a couple of seconds after output
+# without blocking the prompt. Absent on the desktop emulator.
+try:
+  import _thread
+except ImportError:
+  _thread = None
 
-def parse_inline_directives(message, references, images, args, vs):
-  idx = 0
-  result = ""
-  mod_args = {}
-  changed = False
+el = gpt.el
 
-  while True:
-    start = message.find('[[', idx)
-    if start == -1:
-      result += message[idx:]
-      break
 
-    end = message.find(']]', start)
-    if end == -1:
-      result += message[idx:]
-      break
+# ----------------------------------------------------------------------------
+# Helpers ported from gpt_rt.py
+# ----------------------------------------------------------------------------
 
-    result += message[idx:start]
-    block = message[start+2:end].strip()
-    handled = False
+def load_app_list():
+  result = []
+  for path in ('/config/apps.json', '/config/agent_apps.json'):
+    try:
+      with open(path, 'r') as f:
+        result += ujson.load(f)
+    except:
+      pass
+  return result
 
-    if len(block) > 0 and block[0] == '-':
-      try:
-        opt_args = block.split()
-      except Exception:
-        opt_args = []
 
-      i = 0
-      ok = True
-      while i < len(opt_args):
-        opt = opt_args[i]
+class CaptureStream(io.IOBase):
+  _MAX = 300000
 
-        if opt == '-m' or opt == '--model':
-          if i + 1 < len(opt_args):
-            mod_args['model'] = opt_args[i + 1]
-            i += 2
-            handled = True
-          else:
-            print("Inline option error: -m requires a value", file=vs)
-            ok = False
-            break
+  def __init__(self):
+    self._parts = []
+    self._total = 0
 
-        elif opt == '-e' or opt == '--effort':
-          if i + 1 < len(opt_args):
-            mod_args['effort'] = opt_args[i + 1]
-            i += 2
-            handled = True
-          else:
-            print("Inline option error: -e requires a value", file=vs)
-            ok = False
-            break
+  def write(self, data):
+    if isinstance(data, (bytes, bytearray)):
+      data = data.decode('utf-8', 'replace')
+    remaining = self._MAX - self._total
+    if remaining <= 0:
+      return
+    if len(data) > remaining:
+      data = data[:remaining]
+    self._parts.append(data)
+    self._total += len(data)
 
-        elif opt == '-j' or opt == '--jp':
-          mod_args['jp'] = True
-          i += 1
-          handled = True
+  def read(self, n=1):
+    return ''
 
-        elif opt == '-c' or opt == '--clipboard':
-          mod_args['clipboard'] = True
-          i += 1
-          handled = True
+  def getvalue(self):
+    return ''.join(self._parts)
 
-        elif opt == '-nf' or opt == '--no-format':
-          mod_args['no_format'] = True
-          i += 1
-          handled = True
 
-        elif opt == '-n' or opt == '--nosave':
-          mod_args['nosave'] = True
-          i += 1
-          handled = True
-
-        elif opt == '-v' or opt == '--voice':
-          mod_args['voice'] = True
-          i += 1
-          handled = True
-
-        elif opt == '-vt' or opt == '--voice-type':
-          if i + 1 < len(opt_args):
-            mod_args['voice_type'] = opt_args[i + 1]
-            i += 2
-            handled = True
-          else:
-            print("Inline option error: -vt requires a value", file=vs)
-            ok = False
-            break
-
-        elif opt == '-i' or opt == '--image':
-          i += 1
-          handled = True
-          while i < len(opt_args) and not opt_args[i].startswith('-'):
-            img_path = opt_args[i]
-            if img_path.startswith("http://") or img_path.startswith("https://"):
-              images.append(img_path)
-            else:
-              try:
-                with open(img_path, 'rb') as f:
-                  images.append(f.read())
-              except Exception:
-                print(f'Inline option error when opening image {img_path}', file=vs)
-            i += 1
-
-        elif opt == '-f' or opt == '--file':
-          print("Inline option note: -f is not supported in [[...]] blocks", file=vs)
-          i += 1
-          while i < len(opt_args) and not opt_args[i].startswith('-'):
-            i += 1
-          handled = True
-
-        else:
-          print(f"Inline option note: unsupported option {opt}", file=vs)
-          i += 1
-          handled = True
-
-      if ok:
-        changed = True
-
-    else:
-      if file_exists(block):
-        try:
-          with open(block, 'r') as f:
-            references.append("---- " + block + " ----\n" + f.read())
-          handled = True
-          changed = True
-        except Exception as e:
-          print(f"Error reading inline reference {block}: {e}", file=vs)
+def _parse_cmd_string(text):
+  parts = []
+  cur = ''
+  in_quote = False
+  quote = ''
+  for ch in text:
+    if in_quote:
+      if ch == quote:
+        in_quote = False
       else:
-        print(f"Inline reference file not found: {block}", file=vs)
+        cur += ch
+    else:
+      if ch in ('"', "'"):
+        in_quote = True
+        quote = ch
+      elif ch == ' ':
+        if cur:
+          parts.append(cur)
+          cur = ''
+      else:
+        cur += ch
+  if cur:
+    parts.append(cur)
+  return parts
 
-    if not handled:
-      result += message[start:end+2]
 
-    idx = end + 2
+def build_agent_instructions(app_list, my_screen=None):
+  """System prompt describing the function tools (mirrors gpt_rt.py)."""
+  text = (
+    "You are an autonomous coding assistant running on a MicroPython Pocket Deck "
+    "device. Your main job is to write, run, and debug MicroPython code directly "
+    "on the device using the provided function tools. Prefer calling a tool to "
+    "gather facts or test code instead of guessing.\n"
+    "Writing and verifying code is the core loop: use write_file to create or "
+    "edit a MicroPython file, then use command_with_return to RUN it and read the "
+    "captured output, fix any errors, and re-run until it works. A runnable "
+    "script/app is a module that defines main(vs, args); you run it by passing its "
+    "name (plus arguments) to command_with_return. After you EDIT a script and "
+    "run it again, prefix the command with 'r ' (e.g. 'r temp_foo') so the module "
+    "is reloaded — without it the old cached code runs instead of your edits. "
+    "Keep scratch/experimental scripts in /sd/py with names starting temp_* and "
+    "rm them when finished. "
+    "A script's main(vs, args) receives an output stream as its first argument; "
+    "write results with print(..., file=vs) so command_with_return can capture "
+    "and return that output to you (plain print() goes to the REPL and is NOT "
+    "captured). ALWAYS run code to confirm it behaves correctly before telling the "
+    "user it is done — do not claim something works without having executed it.\n"
+    "Use command_with_return to look up information too (e.g. list files with "
+    "'ls /sd/Documents/word*', read a file with 'cat /path', search with grep). "
+    "Always call it when the user asks about files, code, or device state.\n"
+    "You can see and drive other apps running on the device. Use list_running_apps "
+    "to see which app is on which screen. Use switch_screen to bring a screen to "
+    "the foreground. Use capture_screen to take a screenshot of a screen and look "
+    "at it (it is returned to you as an image); it takes some time, so do not "
+    "request screenshots at a high rate. Use send_keys to type into the app in the "
+    "foreground; set enter=true to press Enter, and use escape sequences for "
+    "special keys (Up=\\x1b[A, Down=\\x1b[B, Right=\\x1b[C, Left=\\x1b[D, Esc=\\x1b, "
+    "Backspace=\\x08, Ctrl-X=\\x18). After acting, capture_screen again to confirm "
+    "the result before continuing.\n"
+  )
+  if my_screen is not None:
+    text += ("\nIMPORTANT: your own screen — where your typed answers are shown — "
+             "is screen %d. While working you may switch to other screens to drive "
+             "apps, but the user only sees the foreground screen. Whenever you have "
+             "an answer or output you want the user to read, call switch_screen(%d) "
+             "to bring your screen back to the foreground before you finish.\n"
+             % (my_screen, my_screen))
+  if app_list:
+    text += ("\nUse launch_app to open apps. Pass optional args (e.g. a file path) "
+             "to open a specific file. Available apps:\n")
+    for item in app_list:
+      if isinstance(item, list) and len(item) == 2:
+        name = item[0]
+        info = item[1]
+        desc = info.get('description', '') if isinstance(info, dict) else ''
+        text += "  - %s: %s\n" % (name, desc)
+  return text
 
-  return result, changed, mod_args
 
-def read_api_key():
-  try:
-    with open(API_KEY_FILENAME,"r") as f:
-      api_key = f.read().strip()
-    return api_key
-  except Exception as e:
-    print(f"Error to open API key. Put API key to {API_KEY_FILENAME}", file=self.vs)
-    return False
-    
-  #return True
+def build_tools(app_list, agent=False, web_search=True):
+  """Tool schemas for the Responses API (flat function format). Function tools
+  are only included in agent mode; plain mode keeps just web_search."""
+  tools = []
+  if web_search:
+    tools.append({"type": "web_search"})
+  if not agent:
+    return tools
 
-def make_log_filename():
-  ctime = time.gmtime(time.time()+pu.timezone*60*15)
-  return f"/sd/log/gptlog{ctime[1]:02}{ctime[2]:02}_{ctime[3]:02}{ctime[4]:02}.md"
+  tools.append({
+    "type": "function",
+    "name": "command_with_return",
+    "description": "Run a device command (or any installed module) and return its captured output. This is your primary tool for TESTING AND VERIFYING CODE: after you write a script with write_file, run it here by name and read the output to confirm it works, see errors, and iterate. A runnable script/app is a module exposing main(vs, args); invoke it by its name plus arguments, e.g. 'temp_foo arg1' for /sd/py/temp_foo.py, or any existing app/command. IMPORTANT: if you EDIT a script and run it again, prefix the command with 'r ' to reload it (e.g. 'r temp_foo arg1') — without 'r' the previous, cached version runs instead of your new code. Built-in commands include: ls (glob patterns like 'word*'; 'ls -r path' lists recursively), cat (read file), head, tail, rm, mv, cp, mkdir, rmdir, grep (search in files), ping, dic (dictionary lookup), curl (fetch web content), and 'analog_clock_set_timer <minutes>'. No shell pipes ('|') — this is not Linux. See README.md for command usage.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "command": {
+          "type": "string",
+          "description": "Command with arguments, e.g. 'ls /sd/Documents' or 'ls /sd/Documents/word*' or 'cat /sd/notes.txt'"
+        }
+      },
+      "required": ["command"]
+    }
+  })
 
-def append_log(filename, text):
-  try:
-    with open(filename, "a") as f:
-      f.write(text)
-    return True
-  except Exception:
-    return False
+  tools.append({
+    "type": "function",
+    "name": "write_file",
+    "description": "Write text content to a file on the device filesystem. Creates or overwrites the file. The original file will be backed up under /sd/backup, so you don't need to take a backup file",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Absolute file path to write to, e.g. '/sd/data/puzzle.txt'"
+        },
+        "content": {
+          "type": "string",
+          "description": "Text content to write to the file"
+        }
+      },
+      "required": ["path", "content"]
+    }
+  })
 
-def save_log(message, raw_response, log_filename=None):
-  if log_filename == None:
-    log_filename = make_log_filename()
-
-  is_new = not file_exists(log_filename)
-  mode = "w" if is_new else "a"
-
-  with open(log_filename, mode) as f:
-    if not is_new:
-      f.write("\n\n----- iteration -----\n")
-    f.write(message)
-    f.write('\n')
-    f.write(raw_response)
-
-  try:
-    pdeck.shared_filelist(log_filename)
-  except Exception:
-    pass
-  try:
-    pdeck.clipboard_copy(log_filename)
-  except Exception:
-    pass
-
-  return log_filename
-
-class chatgpt_util:
-  def __init__(self,vs):
-    self.vs = vs
-    self.url = "https://api.openai.com/v1/responses"
-    self.stt_url = "https://api.openai.com/v1/audio/transcriptions"
-    self.tts_url = "https://api.openai.com/v1/audio/speech"
-    self.api_key = ""
-
-  def post(self, url, json=None):
-    headers = {
-      'Content-Type' : 'application/json',
-      'Accept': 'application/json',
-      'Authorization' : 'Bearer ' + self.api_key
+  if app_list:
+    tools.append({
+      "type": "function",
+      "name": "launch_app",
+      "description": "Launch a Pocket Deck application by its exact name, optionally passing arguments such as a file path to open",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "app_name": {
+            "type": "string",
+            "description": "The exact name of the app to launch as listed"
+          },
+          "args": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Optional extra arguments for the app, e.g. a file path like '/sd/test.txt'"
+          }
+        },
+        "required": ["app_name"]
       }
-    return requests.post(url, headers=headers, data=json)
+    })
 
-  def read_api_key(self):
-    self.api_key = read_api_key()
-    return False if self.api_key == False else True
-    
+  tools.append({
+    "type": "function",
+    "name": "list_running_apps",
+    "description": "List the apps currently running and which screen number each is on. Use this before switching, capturing, or driving an app.",
+    "parameters": {"type": "object", "properties": {}, "required": []}
+  })
 
-  def make_json(self, message, references, images=None, model="gpt-5.5", instructions = None, effort="medium"):
+  tools.append({
+    "type": "function",
+    "name": "switch_screen",
+    "description": "Bring a screen to the foreground so it becomes active. Required before capturing or sending keys to that screen. Note the screen number in the function is 0-based, however, screen number shown in GUI is 1-based. So if the user wants to switch to screen 2, send 1 as an argument.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "screen": {"type": "integer", "description": "Screen number to switch to (0-9)"}
+      },
+      "required": ["screen"]
+    }
+  })
+
+  tools.append({
+    "type": "function",
+    "name": "capture_screen",
+    "description": "Take a screenshot of a screen and return it to you as an image so you can read what is on it. If screen is given, switches to it first.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "screen": {"type": "integer", "description": "Optional screen number to switch to and capture. If omitted, captures the current foreground screen."}
+      },
+      "required": []
+    }
+  })
+
+  tools.append({
+    "type": "function",
+    "name": "send_keys",
+    "description": "Type text / keystrokes into the foreground app. Use escape sequences for special keys (arrows \\x1b[A/B/C/D, Esc \\x1b, Backspace \\x08, Ctrl-X \\x18).",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "text": {"type": "string", "description": "Characters to inject as keyboard input"},
+        "screen": {"type": "integer", "description": "Optional screen number to switch to before typing (input only reaches the foreground app)"},
+        "enter": {"type": "boolean", "description": "If true, press Enter (carriage return) after the text"}
+      },
+      "required": ["text"]
+    }
+  })
+
+  return tools
+
+
+# ----------------------------------------------------------------------------
+# Agent client
+# ----------------------------------------------------------------------------
+
+class chatgpt_agent(gpt.chatgpt_util):
+  def __init__(self, vs):
+    super().__init__(vs)
+    self.app_list = []
+    self.capture_buf = None
+    self.pending_image = None
+    # Server-side conversation state. Chaining requests with this id lets the
+    # server keep prior turns so we only send the new user message each turn.
+    self.prev_response_id = None
+    # Execution mode for effectful tools. 'auto' runs command_with_return and
+    # write_file without asking; 'plan' confirms each one with the user first.
+    # Toggled at runtime via the /mode|/auto|/plan commands or Shift-Tab.
+    self.mode = 'auto'
+    # Japanese IME state for conversation-mode input. jp_ime tracks whether the
+    # romaji->kana IME is active (toggled with Alt+`/Alt+j); jp_font_loaded
+    # records whether the unicode terminal font has been switched in.
+    self.jp_ime = False
+    self.jp_font_loaded = False
+    # Generation token for the deferred "result ready" LED (2) auto-off, so a
+    # stale timer can't clear an LED that a newer result has just relit.
+    self.led2_gen = 0
+
+  def schedule_led2_off(self, secs=2):
+    """Turn LED 2 off `secs` seconds from now in a tiny background thread, so
+    the prompt isn't blocked. Guarded by led2_gen: if a newer result lights the
+    LED (or the conversation ends) before the timer fires, this no-ops."""
+    self.led2_gen += 1
+    gen = self.led2_gen
+    def _worker():
+      try:
+        time.sleep(secs)
+      except Exception:
+        return
+      if self.led2_gen == gen:
+        try:
+          pdeck.led(2, 0)
+        except Exception:
+          pass
+    if _thread is None:
+      return            # no threads (emulator): leave it; next turn clears it
+    try:
+      _thread.start_new_thread(_worker, ())
+    except Exception:
+      pass
+
+  # --- request payload -------------------------------------------------------
+
+  def _build_content(self, message, references, images):
     content_items = []
-    
-    # Add text message
     if len(references) > 0:
-      ref_text = "I put some attached text files as reference. Then answer the question by using attached information. You are not limited to reference the attached text, you can use all your knowledge. \n"
+      ref_text = ("I put some attached text files as reference. Then answer the "
+                  "question by using attached information. You are not limited to "
+                  "reference the attached text, you can use all your knowledge. \n")
       for i, item in enumerate(references):
-        ref_text += f"----- reference {i} -----\n{item}\n"
+        ref_text += "----- reference %d -----\n%s\n" % (i, item)
       ref_text += "----- Question -----\n"
       message = ref_text + message
-
     content_items.append({"type": "input_text", "text": message})
-
-    # Add images
     if images:
       for img in images:
         if type(img) == str:
           img_url = img
         else:
           b64 = ubinascii.b2a_base64(img).decode('utf-8').strip()
-          img_url = f"data:image/jpeg;base64,{b64}"
-          
-        content_items.append({
-          "type": "input_image",
-          "image_url": img_url
+          img_url = "data:image/jpeg;base64," + b64
+        content_items.append({"type": "input_image", "image_url": img_url})
+    return content_items
+
+  def ask_agent(self, message, references, images, model, instructions, effort,
+                tools, silent=False, max_iters=25):
+    """Run one user turn: send the message, resolve any function calls, and
+    return the model's final text. Keeps self.prev_response_id updated so the
+    next turn (conversation mode) continues the same context."""
+    content_items = self._build_content(message, references, images)
+    input_list = [{"type": "message", "role": "user", "content": content_items}]
+    prev_id = self.prev_response_id
+    final_text = None
+    in_flight = False  # True once we have answered outputs not yet confirmed delivered
+    pdeck.led(2, 0)  # clear the "result ready" indicator at the start of a turn
+
+    # Cap the tool round-trips. On the final allowed round we set
+    # tool_choice="none" so the model returns a text answer instead of yet
+    # another call. That round still carries the previous batch of
+    # function_call_outputs, so self.prev_response_id never ends up pointing at a
+    # response with an unanswered function call — which would otherwise make the
+    # *next* turn fail with "no tool output found for function call ...".
+    for i in range(max_iters + 1):
+      force_final = (i == max_iters)
+      gc.collect()  # large JSON/base64 each round-trip fragments the small heap
+      payload = {
+        "model": model,
+        "reasoning": {"effort": effort},
+        "tools": tools,
+        "input": input_list,
+      }
+      if instructions:
+        payload["instructions"] = instructions
+      if prev_id:
+        payload["previous_response_id"] = prev_id
+      if force_final:
+        payload["tool_choice"] = "none"
+
+      pdeck.led(1, 40)  # working: waiting for the model's response
+      if not silent:
+        _anim = gpt.ThinkingAnimation(self.vs, "Asking GPT..")
+      response = self.post(self.url, ujson.dumps(payload).encode('utf-8'))
+      try:
+        data = response.json()
+      except:
+        if not silent:
+          _anim.stop()
+        print("Error: Non-JSON response (%s)" % response.status_code, file=self.vs)
+        print(response.text[:200], file=self.vs)
+        response.close()
+        pdeck.led(1, 0)
+        if in_flight:
+          self.prev_response_id = None  # outputs never delivered; chain is broken
+        return final_text
+      response.close()
+      if not silent:
+        _anim.stop()
+      pdeck.led(1, 0)  # got the response
+
+      if data.get("error"):
+        print("API Error: %s" % data["error"].get("message", "Unknown error"), file=self.vs)
+        if in_flight:
+          self.prev_response_id = None  # outputs never delivered; chain is broken
+        return final_text
+
+      # A successful response confirms the prior batch of outputs was delivered.
+      prev_id = data.get("id")
+      in_flight = False
+
+      fn_calls = []
+      text_out = None
+      for item in data.get("output", []):
+        t = item.get("type")
+        if t == "function_call":
+          fn_calls.append(item)
+        elif t == "message":
+          for c in item.get("content", []):
+            if c.get("type") == "output_text" or c.get("type") == "text":
+              text_out = (text_out or "") + c.get("text", "")
+      if text_out:
+        final_text = text_out
+
+      if not fn_calls:
+        self.prev_response_id = prev_id  # clean response: safe to chain next turn
+        break
+      if force_final:
+        # Model ignored tool_choice="none" and still asked for calls. We won't
+        # answer them now, so drop the chain to avoid leaving a dangling
+        # function call that would break the next turn.
+        self.prev_response_id = None
+        print("\n[Reached tool-call limit; stopping here.]", file=self.vs)
+        break
+
+      # Execute the requested calls; their outputs become the next request's
+      # input. With previous_response_id we only send the new items.
+      next_input = []
+      self.pending_image = None
+      for fc in fn_calls:
+        name = fc.get("name", "")
+        call_id = fc.get("call_id", "")
+        arguments = fc.get("arguments", "")
+        print("\n%s[Call]%s %s" % (el.bold(), el.bold_off(), self._call_display(name, arguments)), file=self.vs)
+        # Plan mode: the two effectful tools must be confirmed before they run.
+        # A decline is reported back to the model as the tool output so it can
+        # adjust instead of silently failing.
+        if self.mode == 'plan' and name in ('command_with_return', 'write_file'):
+          approved, feedback = self.confirm_tool(name, arguments)
+          if not approved:
+            result = "User declined to run %s (Plan mode)." % name
+            if feedback:
+              result += " User feedback: " + feedback
+            print("%s[Skipped]%s %s" % (el.bold(), el.bold_off(), result[:200]), file=self.vs)
+            next_input.append({
+              "type": "function_call_output",
+              "call_id": call_id,
+              "output": result
+            })
+            continue
+        try:
+          result = self.execute_function_call(call_id, name, arguments)
+        except BaseException as e:
+          # Never let a tool (e.g. a module raising SystemExit) kill the session.
+          result = "Error: %r" % (e,)
+        print("%s[Result]%s %s" % (el.bold(), el.bold_off(), result[:200]), file=self.vs)
+        next_input.append({
+          "type": "function_call_output",
+          "call_id": call_id,
+          "output": result
         })
 
-    payload_dic = {
-        "model" : model,
-        "reasoning" : {
-          "effort" : effort
-        },
-        "tools" : [
-          { "type" : "web_search" }
-          ],
-        "input" : [
-          {
-            "type": "message",
-            "role": "user",
-            "content": content_items
-          }
-        ]
-    }
-    if instructions:
-      payload_dic['instructions'] = instructions
-      
-    payload = ujson.dumps(payload_dic)
-    #print(payload)
-    return payload
-    
-  def ask(self,json):
-    response = self.post(self.url,json.encode('utf-8'))
-    #print(f"res{response.text}")
-    try:
-      response_data = response.json()
-    except:
-      print(f"Error: Non-JSON response ({response.status_code})", file=self.vs)
-      print(response.text[:200], file=self.vs)
-      response.close()
-      return None
-    response.close()
+      # A capture_screen call leaves a base64 PNG to feed back as a user image.
+      if self.pending_image is not None:
+        next_input.append({
+          "type": "message",
+          "role": "user",
+          "content": [{
+            "type": "input_image",
+            "image_url": "data:image/png;base64," + self.pending_image
+          }]
+        })
+        self.pending_image = None
 
-    if "error" in response_data and response_data['error'] != None:
-      print(f"API Error: {response_data['error'].get('message', 'Unknown error')}", file=self.vs)
-      return None
+      input_list = next_input
+      in_flight = True  # these outputs are delivered on the next successful POST
 
-    try:
-      # Responses API structure: output -> items
-      # Each item can be a message with content
-      # print(response_data)
-      for item in response_data.get("output", []):
-        if item.get("type") == "message":
-          for content in item.get("content", []):
-            if content.get("type") == "output_text" or content.get("type") =="text":
-              return content.get("text")
-    except Exception as e:
-      print(f"Error parsing response: {e}", file=self.vs)
-    
-    return None
+    return final_text
 
-  def stt(self, filename, language = None):
-    """Transcribes audio using Whisper (Stream Upload)"""
-    boundary = "----MicroPythonPdeckBoundary"
-    try:
-      file_size = os.stat(filename)[6]
-    except Exception as e:
-      print(f"STT Error reading file stat: {e}", file=self.vs)
-      return None
-    
-    header_bytes = (
-        '--' + boundary + '\r\n' +
-        'Content-Disposition: form-data; name="file"; filename="audio.wav"\r\n' +
-        'Content-Type: audio/wav\r\n\r\n'
-    ).encode('utf-8')
-    
-        #'Content-Disposition: form-data; name="model"\r\n\r\nwhisper-1\r\n' +
-    # Build multipart fields after the audio file.
-    # OpenAI transcription API accepts optional "language" as an ISO-639-1 code
-    # such as "en", "ja", "fr".  When provided, it improves accuracy and latency.
-    footer = (
-        '\r\n--' + boundary + '\r\n' +
-        'Content-Disposition: form-data; name="model"\r\n\r\ngpt-4o-mini-transcribe\r\n'
-    )
+  # --- plan-mode confirmation ------------------------------------------------
 
-    if language:
-      footer += (
-        '--' + boundary + '\r\n' +
-        'Content-Disposition: form-data; name="language"\r\n\r\n' +
-        str(language) + '\r\n'
-      )
-
-    footer += '--' + boundary + '--\r\n'
-    footer_bytes = footer.encode('utf-8')
-    
-    content_length = len(header_bytes) + file_size + len(footer_bytes)
-    print("Uploading audio to STT (streaming)...", file=self.vs)
-
-    import usocket
-    try:
-      import ussl as ssl
-    except ImportError:
-      import ssl
-
-    addr = usocket.getaddrinfo("api.openai.com", 443)[0][-1]
-    s = usocket.socket()
-    try:
-      s.connect(addr)
+  def _call_display(self, name, arguments):
+    """How a tool call is echoed on the '[Call]' line. For write_file we show
+    only the path and size — the full file content would otherwise flood the
+    screen; the change itself is shown afterwards as a diff (see _show_write)."""
+    if name == "write_file":
       try:
-        s = ssl.wrap_socket(s, server_hostname="api.openai.com")
-      except TypeError:
-        s = ssl.wrap_socket(s)
-        
-      req_head = (
-          "POST /v1/audio/transcriptions HTTP/1.0\r\n"
-          "Host: api.openai.com\r\n"
-          "Connection: close\r\n"
-          f"Content-Type: multipart/form-data; boundary={boundary}\r\n"
-          f"Content-Length: {content_length}\r\n"
-          f"Authorization: Bearer {self.api_key}\r\n\r\n"
-      ).encode('utf-8')
+        a = ujson.loads(arguments) if arguments else {}
+      except:
+        a = {}
+      return "write_file  %s  (%d bytes)" % (a.get("path", ""), len(a.get("content", "")))
+    return "%s %s" % (name, arguments)
 
-      s.write(req_head)
-      s.write(header_bytes)
+  def _summarize_action(self, name, arguments):
+    """One-line human-readable description of a pending tool call."""
+    try:
+      a = ujson.loads(arguments) if arguments else {}
+    except:
+      a = {}
+    if name == "command_with_return":
+      return "run command:  %s" % a.get("command", "")
+    if name == "write_file":
+      return "write %d byte(s) to  %s" % (len(a.get("content", "")), a.get("path", ""))
+    return "%s %s" % (name, arguments)
 
-      buf = bytearray(16384)
-      with open(filename, 'rb') as f:
-        while True:
-          sz = f.readinto(buf)
-          if not sz:
-            break
-          s.write(memoryview(buf)[:sz])
-          
-      s.write(footer_bytes)
+  def confirm_tool(self, name, arguments):
+    """Plan mode: show what the tool will do and ask the user to confirm.
+    Returns (approved, feedback). Enter/y/yes approve; n/no decline silently;
+    any other text declines and is sent back to the model as feedback."""
+    vs = self.vs
+    print("%s[Plan]%s %s" % (el.bold(), el.bold_off(), self._summarize_action(name, arguments)), file=vs)
+    resp = read_line(vs, "Run? [Y]es / [n]o / type a reason to decline: ", [], lead="")
+    r = (resp or "").strip()
+    low = r.lower()
+    if low in ("", "y", "yes"):
+      return True, ""
+    if low in ("n", "no"):
+      return False, ""
+    return False, r
 
-      l = s.readline()
-      if not l:
-        print("STT Error: Empty response", file=self.vs)
-        return None
-        
-      status_code = int(l.split(None, 2)[1])
-      
-      while True:
-        line = s.readline()
-        if not line or line == b"\r\n":
-          break
-          
-      body_chunks = []
-      while True:
-        sz = s.readinto(buf)
-        if not sz:
-          break
-        body_chunks.append(bytes(memoryview(buf)[:sz]))
-      body = b"".join(body_chunks)
+  # --- tool implementations (ported from gpt_rt.py, screen/file only) --------
 
-      if status_code == 200:
-        return ujson.loads(body).get('text')
-      else:
-        print(f"STT Error: {status_code} {body.decode('utf-8')}", file=self.vs)
-        return None
+  def execute_function_call(self, call_id, name, arguments):
+    if name == "command_with_return":
+      return self.execute_command_with_return(arguments)
+    if name == "write_file":
+      return self.execute_write_file(arguments)
+    if name == "list_running_apps":
+      return self.execute_list_running_apps(arguments)
+    if name == "switch_screen":
+      return self.execute_switch_screen(arguments)
+    if name == "capture_screen":
+      return self.execute_capture_screen(arguments)
+    if name == "send_keys":
+      return self.execute_send_keys(arguments)
+    if name == "launch_app":
+      return self.execute_launch_app(arguments)
+    return "Unknown function: %s" % name
 
+  def execute_command_with_return(self, arguments):
+    try:
+      args = ujson.loads(arguments) if arguments else {}
+    except:
+      return "Error: invalid arguments"
+    command = args.get("command", "").strip()
+    if not command:
+      return "Error: no command specified"
+    parts = _parse_cmd_string(command)
+    if not parts:
+      return "Error: empty command"
+    # 'r' prefix forces a fresh re-import of the module, exactly like the device
+    # shell (pdeck_utils.process_prefix). Essential after editing a script you
+    # already ran, since MicroPython otherwise reuses the cached module.
+    if parts[0] == 'r' and len(parts) > 1:
+      parts.pop(0)
+      if parts[0] in sys.modules:
+        del sys.modules[parts[0]]
+    modname = parts[0]
+    # Refuse to launch the assistant from inside itself: a nested agent session
+    # would re-enter the whole loop (networking + JSON) on the already-deep
+    # 8KB command stack and overflow.
+    if modname in ('gpt', 'gpt_l', 'gptn'):
+      return "Error: refusing to run '%s' recursively from inside the assistant." % modname
+    cap = CaptureStream()
+    try:
+      exec("import %s" % modname, {})
+      sys.modules[modname].main(cap, parts)
+    except BaseException as e:
+      # Catch BaseException, not just Exception: a module that calls sys.exit()/
+      # quit() (SystemExit) or raises KeyboardInterrupt would otherwise escape
+      # and kill gptn. Capture the full traceback so the model can debug it.
+      cap.write("\nError running '%s':\n" % modname)
+      sys.print_exception(e, cap)
+    result = cap.getvalue()
+    if not result:
+      return "(no output)"
+    if cap._total >= CaptureStream._MAX:
+      result += "\n...(truncated)"
+    return result
+
+  def execute_write_file(self, arguments):
+    try:
+      args = ujson.loads(arguments) if arguments else {}
+    except:
+      return "Error: invalid arguments"
+    path = args.get("path", "").strip()
+    content = args.get("content", "")
+    if not path:
+      return "Error: no path specified"
+    try:
+      backup_msg = ""
+      backup_path = None
+      try:
+        with open(path, "r") as f:
+          existing = f.read()
+        t = time.gmtime(time.time() + pu.timezone * 60 * 15)
+        filename = path.split("/")[-1]
+        backup_name = "%s_%02d%02d_%02d%02d" % (filename, t[1], t[2], t[3], t[4])
+        try:
+          os.mkdir("/sd/backup")
+        except:
+          pass
+        backup_path = "/sd/backup/" + backup_name
+        with open(backup_path, "w") as f:
+          f.write(existing)
+        backup_msg = " (backup: %s)" % backup_path
+      except OSError:
+        backup_path = None  # no existing file: this is a fresh create, not an update
+      with open(path, "w") as f:
+        f.write(content)
+      # Show the user what changed: a diff against the backup for an update,
+      # or the content itself for a brand-new file. (The model still gets the
+      # short summary below as the tool result.)
+      self._show_write(path, backup_path, content)
+      return "Written %d bytes to %s%s" % (len(content), path, backup_msg)
     except Exception as e:
-      print(f"STT Socket Error: {e}", file=self.vs)
-      return None
-    finally:
-      s.close()
+      return "Error: %s" % str(e)
 
-  def tts(self, text, filename, voice='alloy'):
-    """Converts text to speech"""
-    res = self.tts_stream(text, voice)
-    if res and res.status_code == 200:
-      with open(filename, 'wb') as f:
-        f.write(res.content)
-      res.close()
-      return True
-    return False
+  def _show_write(self, path, backup_path, content):
+    """Display the effect of a write_file call. For an update (backup_path set),
+    reuse the `diff` command to show old vs new; for a new file, print the
+    content so the user can see what was created."""
+    vs = self.vs
+    if backup_path:
+      try:
+        import diff
+        diff.main(vs, ['diff', backup_path, path])
+        return
+      except Exception as e:
+        print("(diff unavailable: %s)" % e, file=vs)
+    print("%s[New file]%s %s" % (el.bold(), el.bold_off(), path), file=vs)
+    print(content, file=vs)
 
-  def tts_stream(self, text, voice='alloy'):
-    """Converts text to speech and returns a response object with a raw stream"""
-    payload = ujson.dumps({
-        "model": "tts-1-hd",
-        #"model": "gpt-4o-mini-tts",
-        "input": text,
-        "voice": voice,
-        #"speed" : 1.1,
-        "response_format": "wav"
-    }).encode('utf-8')
-    
-    headers = {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + self.api_key
-    }
-    
-    # In MicroPython urequests, the response object itself can sometimes be treated as a stream
-    return requests.post(self.tts_url, headers=headers, data=payload)
+  def execute_list_running_apps(self, arguments):
+    lines = ["screen 0: Python REPL"]
+    try:
+      apps_scnums = []
+      for key in pu.app_list:
+        app = pu.app_list[key]
+        name = app.get('name', '?') if isinstance(app, dict) else str(app)
+        lines.append("screen %s: %s" % (key, name))
+        apps_scnums.append(key)
+      for i in range(1, 10):
+        if pdeck.cmd_exists(i) and i not in apps_scnums:
+          lines.append("screen %d: command line shell" % i)
+      lines.sort()
+    except Exception as e:
+      return "Error: %s" % str(e)
+    if not lines:
+      return "(no running apps)"
+    return "\n".join(lines)
 
-el = elib.esclib()
+  def execute_switch_screen(self, arguments):
+    try:
+      args = ujson.loads(arguments) if arguments else {}
+      scnum = int(args.get("screen"))
+    except:
+      return "Error: invalid arguments"
+    pdeck.change_screen(scnum)
+    pdeck.show_screen_num()
+    return "Switched to screen %d" % scnum
 
-class ThinkingAnimation:
-  _SPIN = '▌▄▐▀'
-  _CHARS = '▁▂▃▄▅▆▇█'
-  _COLS = [36, 92, 33, 92]  # cyan → lightgreen → yellow → lightgreen
+  def execute_capture_screen(self, arguments):
+    try:
+      args = ujson.loads(arguments) if arguments else {}
+    except:
+      return "Error: invalid arguments"
+    scnum = args.get("screen", None)
+    if scnum is not None:
+      try:
+        scnum = int(scnum)
+      except:
+        return "Error: invalid screen"
+      pdeck.change_screen(scnum)
+      pdeck.show_screen_num()
+      # Give the target one frame to render before capture.
+      pdeck.delay_tick(40)
+    target = "screen %d" % scnum if scnum is not None else "the current screen"
+    if self.capture_buf is None:
+      # 400x240 1-bit = 50 bytes/row * 240 rows.
+      self.capture_buf = bytearray(12000)
+    try:
+      v = pdeck.vscreen()
+      if not v.take_screenshot(0, 0, 400, 240, self.capture_buf):
+        return "Error: screenshot timed out (display busy or screen not active)"
+      png = pngwriter.encode_mono_xbm(self.capture_buf, 400, 240)
+      b64 = ubinascii.b2a_base64(png).decode().strip()
+    except Exception as e:
+      return "Error capturing screen: %s" % str(e)
+    # Fed back as a user image on the next request.
+    self.pending_image = b64
+    return ("Captured %s. The screenshot is attached as an image; look at it and "
+            "describe what you see." % target)
 
-  def __init__(self, vs, label='Asking GPT..'):
-    self.vs = vs
-    if hasattr(self.vs, 'v'):
-      self.v = vs.v
-      self.v.callback(self.update)
-    self.label = label
-    self.tick = 0
-    self.running = True
-    self._el = elib.esclib()
-    vs.write('\r\n\r\n')
+  def execute_send_keys(self, arguments):
+    try:
+      args = ujson.loads(arguments) if arguments else {}
+    except:
+      return "Error: invalid arguments"
+    text = args.get("text", "")
+    if args.get("enter"):
+      text += "\r"
+    if not text:
+      return "Error: no text specified"
+    scnum = args.get("screen", None)
+    if scnum is not None:
+      try:
+        pdeck.change_screen(int(scnum))
+        pdeck.delay_tick(40)
+      except:
+        return "Error: invalid screen"
+    try:
+      v = pdeck.vscreen()
+      v.send_char(text)
+    except Exception as e:
+      return "Error sending keys: %s" % str(e)
+    return "Sent %d key(s)" % len(text)
 
-  def update(self, e):
-    if not self.running:
-      self.v.finished()
-      return
+  def _search_free_screen(self, launched, scnum=2):
+    while True:
+      if not pdeck.cmd_exists(scnum) and scnum not in launched:
+        return scnum
+      scnum += 1
+      if scnum == 10:
+        return -1
 
-    self.tick += 1
-    if self.tick % 15:
-      self.v.finished()
-      return
-    t = self.tick // 15
-    el = self._el
-    nc = len(self._CHARS)
+  def execute_launch_app(self, arguments):
+    try:
+      args = ujson.loads(arguments) if arguments else {}
+    except:
+      return "Error: invalid arguments"
+    app_name = args.get("app_name", "")
+    extra_args = args.get("args", [])
+    for item in self.app_list:
+      if not (isinstance(item, list) and len(item) == 2 and item[0] == app_name):
+        continue
+      info = item[1]
+      if not (isinstance(info, dict) and info.get('type') == 'program'):
+        continue
+      command = [list(c) for c in info.get('command', [])]
+      if extra_args and command:
+        command[0] = [command[0][0]] + extra_args
+      pref_scnum = info.get('screen_number', None)
+      launched = []
+      first = True
+      for one in command:
+        scnum = self._search_free_screen(launched, pref_scnum if pref_scnum else 2)
+        if scnum == -1:
+          break
+        launched.append(scnum)
+        if first:
+          pdeck.change_screen(scnum)
+          first = False
+        pu.launch(one, scnum)
+      pdeck.show_screen_num()
+      return "Launched %s" % app_name
+    return "App not found: %s" % app_name
 
-    self.v.set_draw_color(1)
 
-    bar = ''.join(
-      self._CHARS[int((math.sin((i - t * 0.5) * math.pi / 4) + 1) * (nc - 1) * 0.5 + 0.5)]
-      for i in range(20)
-    )
-    spin = self._SPIN[t % len(self._SPIN)]
-    col = self._COLS[(t // 8) % len(self._COLS)]
-    self.vs.write(
-      el.cur_up(2) +
-      spin +
-      ' ' + self.label + el.erase_to_end_of_current_line() + '\r\n' +
-      bar +
-      el.erase_to_end_of_current_line() + '\r\n' 
-    )
-    self.v.finished()
+# ----------------------------------------------------------------------------
+# Output (format / print / voice / save) - shared by single-shot and chat turns
+# ----------------------------------------------------------------------------
+
+def present_response(vs, gpt_obj, message, raw_response, args, margs, log_filename):
+  if not raw_response:
     return
 
-  def stop(self):
-    self.running = False
-    if hasattr(self.vs, 'v'):
-      self.v.callback(None)
-    el = self._el
-    self.vs.write(
-      el.cur_up(2) +
-      el.erase_to_end_of_current_line() + '\r\n' +
-      el.erase_to_end_of_current_line() + '\r\n' +
-      el.cur_up(2) +
-      el.cursor_mode(True)
-    )
+  no_format = margs['no_format'] if 'no_format' in margs else args.no_format
+  response = raw_response if no_format else gpt.format(raw_response)
+  pdeck.led(2, 130)  # result ready for the user to read
+  print(response, file=vs)
 
-def record_audio(vs, filename, duration_sec=15, silent = False):
-  """Records 16kHz mono audio"""
-  sample_rate = 16000
-  cc = codec_config.codec_config()
-  cc.toggle_li(False)
-  cc.set_agc(True)
-  
-  audio.sample_rate(sample_rate)
-  if not silent:
-    print(f"Recording... (press any key to stop)", file=vs)
-  rec = recorder.stream_record('dummy', vs, 20000)
-  # Use num_channels=1 for bandwidth savings as requested
-  rec.record(filename, sample_rate * duration_sec, num_channels=1)
-  
-  # Wait for recording or keypress
-  start = time.time()
-  while audio.stream_record() and (time.time() - start) < duration_sec:
-    pdeck.delay_tick(10)
-    if vs.poll():
-      ret = vs.read(1)
-      break
-    #if rec.time_silent == 2:
-    #  break
-  rec.stop()
-  return filename
+  voice = margs['voice'] if 'voice' in margs else args.voice
+  if voice:
+    raw_response_sub = re.sub('\]\(ht.+?\)', ']', raw_response)
+    gc.collect()
+    if args.silent:
+      print("TTS processing..", file=vs)
+    else:
+      _anim = gpt.ThinkingAnimation(vs, "TTS..")
+    res = gpt_obj.tts_stream(raw_response_sub, voice=args.voice_type)
+    if not args.silent:
+      _anim.stop()
+    print("TTS processing done", file=vs)
+    if res and res.status_code == 200:
+      stream = getattr(res, "raw", getattr(res, "s", res))
+      try:
+        gpt.play_audio_stream(vs, stream)
+      except Exception as e:
+        print("Streaming failed: %s." % e, file=vs)
+      res.close()
 
-def play_audio(vs, filename):
-  """Plays audio from file using wav_play"""
-  wp = wav_play.wav_play()
-  wp.open(filename)
-  wp.play()
-  while audio.stream_play():
-    pdeck.delay_tick(5)
-    ret = vs.v.read_nb(1)
-    if ret and ret[0] > 0:
-      break
-  wp.stop()
-  wp.close()
+  nosave = margs['nosave'] if 'nosave' in margs else args.nosave
+  if not nosave:
+    try:
+      saved_filename = gpt.save_log(message, raw_response, log_filename)
+      print(el.bold_off(), file=vs)
+      print("Saved to %s and the filename copied to clipboard" % saved_filename, file=vs)
+    except Exception as e:
+      print("Failed to save log: %s" % e, file=vs)
 
-def play_audio_stream(vs, stream):
-  """Plays audio from a stream using wav_play"""
-  wp = wav_play.wav_play()
-  wp.open_stream(stream)
-  wp.play()
-  print("Playing..", file=vs)
-  while audio.stream_play():
-    pdeck.delay_tick(5)
-    ret = vs.v.read_nb(1)
-    if ret and ret[0] > 0:
-      break
-  wp.stop()
-  wp.close()
+  # In conversation mode the turn ends but the app keeps running, so the
+  # "result ready" LED would stay lit until the next turn. Clear it ~2s after
+  # the output instead. (Single-shot turns it off in run_turn's finally.)
+  if args.chat:
+    gpt_obj.schedule_led2_off(2)
 
-def get_message(vs):
-  message=""
+
+# ----------------------------------------------------------------------------
+# Role / instructions assembly
+# ----------------------------------------------------------------------------
+
+DEFAULT_ROLE = "You are a helpful assistant. Keep answers clear and concise."
+
+CODER_ROLE = (
+  "You are an expert MicroPython coding assistant for the Pocket Deck handheld "
+  "device. You write, run, and debug code directly on the device. Favor small, "
+  "correct, idiomatic MicroPython (2-space indentation). Before you tell the user "
+  "a task is done, run the code with your tools and confirm it works; if it "
+  "errors, read the output, fix it, and re-run. Briefly explain what you changed.")
+
+TTS_NOTE = ("Your reply will be fed to a TTS engine; optimize for text-to-speech: "
+            "keep it short and speakable.")
+
+# Auto-attached in agent mode so the model knows Pocket Deck basics.
+DEFAULT_AGENT_REFS = ["/sd/Documents/pd/README.md",
+                      "/sd/Documents/pd/gpt_output_rules.md"]
+
+# Named role presets so users don't have to write a persona from scratch.
+# Maps name -> (role_text, wants_agent). wants_agent=True turns on the tools.
+ROLE_PRESETS = {
+  'plain':     (DEFAULT_ROLE, False),
+  'assistant': (DEFAULT_ROLE, False),
+  'coder':     (CODER_ROLE, True),
+  'coding':    (CODER_ROLE, True),
+  'code':      (CODER_ROLE, True),
+}
+
+# Users can drop their own role text in /sd/roles/<name>.txt and pass -r <name>.
+ROLES_DIR = "/sd/roles"
+
+
+def resolve_role(value):
+  """Resolve a -r/role value to (role_text, wants_agent).
+  value may be a preset name (plain, coder), a file path, a name under
+  /sd/roles/<name>.txt, or literal role text. None -> default plain assistant.
+  wants_agent is True/False for presets, or None when it should not force tools."""
+  if not value:
+    return DEFAULT_ROLE, False
+  key = value.strip().lower()
+  if key in ROLE_PRESETS:
+    return ROLE_PRESETS[key]
+  for path in (value, ROLES_DIR + "/" + value + ".txt"):
+    if gpt.file_exists(path):
+      try:
+        with open(path, "r") as f:
+          return f.read(), None
+      except Exception:
+        pass
+  return value, None   # literal role text
+
+
+def resolve_model(m):
+  if m in ('m', 'medium'):
+    return 'ngpt-5.4'
+  if m in ('h', 'high'):
+    return 'gpt-5.5'
+  if m in ('f', 'fast'):
+    return 'gpt-5.4-mini'
+  return m
+
+
+def assemble_instructions(role, tts, agent, app_list, my_screen=None):
+  text = role if role else DEFAULT_ROLE
+  if tts:
+    text += "\n\n" + TTS_NOTE
+  if agent:
+    text += "\n\n" + build_agent_instructions(app_list, my_screen)
+  return text
+
+
+def load_agent_references(vs, silent=False):
+  """Read the default Pocket Deck reference files (README.md) for agent mode."""
+  refs = []
+  for path in DEFAULT_AGENT_REFS:
+    try:
+      with open(path, "r") as f:
+        refs.append("---- " + path + " ----\n" + f.read())
+      if not silent:
+        print("Attached reference: %s" % path, file=vs)
+    except Exception:
+      pass
+  return refs
+
+
+# ----------------------------------------------------------------------------
+# Interactive single-line editor (conversation mode)
+# ----------------------------------------------------------------------------
+
+def _wide(cp):
+  # Mirror displayapi.c is_cjk_double_width: which codepoints the terminal draws
+  # as 2 cells. Must match exactly so cursor moves line up with what's on screen.
+  return ((0x1100 <= cp <= 0x115F) or (0x2329 <= cp <= 0x232A) or
+          (0x2E80 <= cp <= 0xA4CF) or (0xAC00 <= cp <= 0xD7A3) or
+          (0xF900 <= cp <= 0xFAFF) or (0xFE10 <= cp <= 0xFE19) or
+          (0xFE30 <= cp <= 0xFE6F) or (0xFF01 <= cp <= 0xFF60) or
+          (0xFFE0 <= cp <= 0xFFE6) or (0x16FE0 <= cp <= 0x18DFF) or
+          (0x1B000 <= cp <= 0x1B2FF) or (0x1F000 <= cp <= 0x1FFFF) or
+          (0x20000 <= cp <= 0x3FFFD))
+
+
+def _vis_cells(s):
+  """Width of `s` in terminal cells, counting CJK glyphs as 2 and skipping any
+  CSI escape sequences (e.g. the SGR markers inside an IME pre-edit)."""
+  total = 0
+  i = 0
+  n = len(s)
+  while i < n:
+    c = s[i]
+    if c == '\x1b':                  # skip an escape sequence (no visible width)
+      i += 1
+      if i < n and s[i] == '[':
+        i += 1
+        while i < n and not ('\x40' <= s[i] <= '\x7e'):
+          i += 1
+      i += 1                         # consume the final byte (or the char after ESC)
+      continue
+    total += 2 if _wide(ord(c)) else 1
+    i += 1
+  return total
+
+
+def read_line(vs, prompt, history, on_shift_tab=None, lead="\n",
+              allow_ime=False, ime_on=False, on_ime_toggle=None):
+  """Read one line with editing. Arrows move the cursor; Up/Down browse history;
+  Ctrl-A/E jump to start/end; Ctrl-K/U kill to end/start; Ctrl-B/F move; Backspace
+  and Delete edit. Mirrors the device cmdshell key handling. Returns the line, or
+  None if cancelled with Ctrl-C.
+
+  prompt may be a string or a zero-arg callable returning the current prompt
+  string, so a Shift-Tab handler can redraw it after changing the mode. `lead`
+  is written once before the prompt (a newline by default). When on_shift_tab is
+  given, Shift-Tab (ESC [ Z) calls it and the prompt line is redrawn.
+
+  When allow_ime is set and jp_input is available, Alt+`/Alt+j toggle a Japanese
+  romaji->kana->kanji IME (the same one pem uses). on_ime_toggle() flips the
+  caller's persistent state and returns the new on/off bool; ime_on is the state
+  at entry. While composing, keys feed the IME and a highlighted pre-edit is
+  shown at the caret; the line caret does not move until text is committed."""
+  def render_prompt():
+    return prompt() if callable(prompt) else prompt
+  buf = []
+  cur = 0
+  hcur = len(history)
+  pending = None
+  # Active IME session while composing Japanese (None when off/unavailable).
+  im = jp_input.input_session() if (allow_ime and ime_on and jp_input) else None
+
+  # anchor[0] = cells from the prompt start to the caret, as last rendered. Used
+  # to step back to the prompt start before each repaint.
+  anchor = [0]
+
+  def redraw():
+    # Repaint prompt + text from the prompt start. We step the cursor back by the
+    # last anchor (CUB wraps up across rows in REPL/wrap mode) and erase to end of
+    # screen, so a line that has WRAPPED onto several rows is fully cleared and the
+    # prompt is not duplicated. Counts are in display cells (CJK = 2), so the caret
+    # lands correctly with mixed ASCII/Japanese; only a 2-cell glyph landing exactly
+    # on the right margin (which the terminal skips) can drift by a cell.
+    if anchor[0] > 0:
+      vs.write('\x1b[%dD' % anchor[0])
+    vs.write('\x1b[0J')                                  # erase cursor -> end of screen
+    p = render_prompt()
+    head = ''.join(buf[:cur])
+    pre = ''
+    if im is not None and im.buffer:
+      pre = el.set_font_color(4) + im.d_buffer + el.set_font_color(0)
+    tail = ''.join(buf[cur:])
+    vs.write(p + head + pre + tail)
+    back = _vis_cells(tail)
+    if back > 0:
+      vs.write('\x1b[%dD' % back)
+    anchor[0] = _vis_cells(p) + _vis_cells(head) + _vis_cells(pre)
+
+  if lead:
+    vs.write(lead)
+  p0 = render_prompt()
+  vs.write(p0)
+  anchor[0] = _vis_cells(p0)
+
   while True:
     ch = vs.read(1)
-    if ch == "\r":
-      vs.write("\n")
-      break
-    if ch == chr(8):
-      message = message[:-1]
-      vs.write(ch)
-      vs.write(el.erase_to_end_of_current_line())
-    else:
-      message += ch
-      vs.write(ch)
-  vs.write("\n\n")
-  return message
+    if not ch:
+      continue
+    o = ord(ch)
 
-def format(message):
-  result = ""
-  numfound = 0
-  i = 0
-  while len(message) > 0:
-    pos = message.find("**")
-    if pos == -1:
-      result += message
-      break
-    result += message[:pos]
-    numfound += 1
-    if numfound&1:
-      result += el.set_font_color(1)
-    else:
-      result += el.bold_off()
-    message = message[pos+2:]
-  if numfound & 1:
-    result += el.bold_off()
-  return result
+    # Route keys to the IME while it is on, except control chars / space when
+    # nothing is being composed (those stay normal editor keys: Enter submits,
+    # Backspace edits committed text, a leading space is literal). Escape
+    # sequences (arrows, Alt-toggles) are handled in the ESC branch below.
+    if (im is not None and ch != '\x1b'
+        and not (not im.buffer and (o <= 0x20 or o == 0x7f))):
+      result = im.feed_key(ch.encode('utf-8'))
+      if result:
+        for c in result:
+          buf.insert(cur, c)
+          cur += 1
+      redraw()
+      continue
+
+    if ch == '\x1b':                               # escape sequence
+      c1 = vs.read(1)
+      if allow_ime and on_ime_toggle and c1 in ('`', 'j', '~'):  # Alt+`/j: toggle IME
+        if on_ime_toggle():
+          im = jp_input.input_session() if jp_input else None
+        else:
+          im = None                                # discards any active pre-edit
+        redraw()
+        continue
+      if c1 not in ('[', 'O'):
+        continue
+      c2 = vs.read(1)
+      if im is not None and im.buffer and c2 in ('A', 'B', 'C', 'D'):
+        # While composing, arrows drive henkan candidate selection, not the line.
+        im.feed_key(('\x1b[' + c2).encode('utf-8'))
+        redraw()
+        continue
+      # All edits below mutate buf/cur then repaint via redraw(), which is
+      # column-aware — essential because committed Japanese glyphs are 2 cells
+      # wide, so character-count cursor moves (or a single '\b') would desync.
+      if c2 and '0' <= c2 <= '9':                  # extended (\x1b[3~ etc.)
+        vs.read(1)                                 # consume trailing '~'
+        if c2 == '3' and cur < len(buf):           # Delete (forward)
+          del buf[cur]; redraw()
+        elif c2 in ('1', '7') and cur > 0:         # Home
+          cur = 0; redraw()
+        elif c2 in ('4', '8') and cur < len(buf):  # End
+          cur = len(buf); redraw()
+        continue
+      if c2 == 'A':                                # Up: history back
+        if history and hcur > 0:
+          if hcur == len(history):
+            pending = ''.join(buf)
+          hcur -= 1
+          buf = list(history[hcur]); cur = len(buf); redraw()
+      elif c2 == 'B':                              # Down: history forward
+        if hcur < len(history):
+          hcur += 1
+          buf = list(pending or '') if hcur == len(history) else list(history[hcur])
+          cur = len(buf); redraw()
+      elif c2 == 'C':                              # Right
+        if cur < len(buf):
+          cur += 1; redraw()
+      elif c2 == 'D':                              # Left
+        if cur > 0:
+          cur -= 1; redraw()
+      elif c2 == 'H' and cur > 0:                  # Home
+        cur = 0; redraw()
+      elif c2 == 'F' and cur < len(buf):           # End
+        cur = len(buf); redraw()
+      elif c2 == 'Z' and on_shift_tab:             # Shift-Tab: toggle mode
+        on_shift_tab(); redraw()
+      continue
+
+    if ch == '\r' or ch == '\n':
+      if cur < len(buf):
+        cur = len(buf); redraw()   # park caret past all text so the newline lands below it
+      vs.write('\r\n')
+      return ''.join(buf)
+    elif o in (8, 127):                            # Backspace
+      if cur > 0:
+        cur -= 1; del buf[cur]; redraw()
+    elif o == 1:                                   # Ctrl-A: start
+      if cur > 0:
+        cur = 0; redraw()
+    elif o == 5:                                   # Ctrl-E: end
+      if cur < len(buf):
+        cur = len(buf); redraw()
+    elif o == 2:                                   # Ctrl-B: left
+      if cur > 0:
+        cur -= 1; redraw()
+    elif o == 6:                                   # Ctrl-F: right
+      if cur < len(buf):
+        cur += 1; redraw()
+    elif o == 11:                                  # Ctrl-K: kill to end
+      if cur < len(buf):
+        del buf[cur:]; redraw()
+    elif o == 21:                                  # Ctrl-U: kill to start
+      if cur > 0:
+        del buf[:cur]; cur = 0; redraw()
+    elif o == 4:                                   # Ctrl-D: delete forward
+      if cur < len(buf):
+        del buf[cur]; redraw()
+    elif o == 3:                                   # Ctrl-C: cancel line
+      vs.write('^C\r\n')
+      return None
+    elif o >= 0x20 and ch != '\x7f':               # printable: insert
+      buf.insert(cur, ch); cur += 1; redraw()
+
+
+# ----------------------------------------------------------------------------
+# main
+# ----------------------------------------------------------------------------
 
 def main(vs, args_in):
-  #vs = pu.vscreen_stream()
-  parser = argparse.ArgumentParser(
-            description='ChatGPT query' )
-  parser.add_argument('-a', '--agent', action='store_true', help='Enable Agent Mode')
-  parser.add_argument('-n', '--nosave',action='store_true',help='do not save the result')
+  parser = argparse.ArgumentParser(description='ChatGPT query with function calling')
+  parser.add_argument('-a', '--agent', action='store_true', help='Enable function-calling tools')
+  parser.add_argument('-C', '--chat', action='store_true', help='Conversation mode (keep context across turns)')
+  parser.add_argument('-P', '--plan', action='store_true', help='Start in Plan mode (confirm before running command_with_return / write_file). Default is Auto.')
+  parser.add_argument('-n', '--nosave', action='store_true', help='do not save the result')
   parser.add_argument('-s', '--silent', action='store_true', help='Suppress progress output')
-  parser.add_argument('-nf', '--no-format',action='store_true',help='do not format text (No bold)')
+  parser.add_argument('-nf', '--no-format', action='store_true', help='do not format text (No bold)')
   parser.add_argument('-c', '--clipboard', action='store_true', help='use clipboard as reference text')
-  parser.add_argument('-j', '--jp',action='store_true',help='Answer in Japanese')
-  parser.add_argument('-f', '--file',nargs='+',action='store',help='Attach file(s) as reference. file1 file2...')
-  parser.add_argument('-i', '--image', nargs='+', action='store',help='Attach image file(s) or image url(s). img1 img2...')
-  parser.add_argument('-m', '--model',action='store',default='gpt-5.4',help='Model to use (e.g. gpt-5-mini)')
-  parser.add_argument('-e', '--effort',action='store',default='medium',help='Reasoning effort (low, medium, high)')
-  parser.add_argument('-v', '--voice',action='store_true',help='Use voice mode (STT and TTS)')
-  parser.add_argument('-vt', '--voice-type',action='store',default='coral',help='Voice type for TTS (alloy, coral, echo, fable, onyx, nova, shimmer)')
+  parser.add_argument('-j', '--jp', action='store_true', help='Answer in Japanese')
+  parser.add_argument('-f', '--file', nargs='+', action='store', help='Attach file(s) as reference. file1 file2...')
+  parser.add_argument('-i', '--image', nargs='+', action='store', help='Attach image file(s) or image url(s). img1 img2...')
+  parser.add_argument('-m', '--model', action='store', default='gpt-5.4', help='Model to use (e.g. gpt-5-mini)')
+  parser.add_argument('-e', '--effort', action='store', default='medium', help='Reasoning effort (low, medium, high)')
+  parser.add_argument('-v', '--voice', action='store_true', help='Use voice mode (STT and TTS)')
+  parser.add_argument('-vt', '--voice-type', action='store', default='coral', help='Voice type for TTS')
+  parser.add_argument('-r', '--role', action='store', default=None, help="Role preset 'assistant' or 'coder', a /sd/roles/<name>.txt file, or literal text. Default: assistant.")
   parser.add_argument('--log-file', action='store', default=None, help='Internal: reuse the same log filename across iterations')
-  parser.add_argument('content', nargs='*',help='Content to ask')
-  parser.add_argument('-q', nargs='+',help='Content to ask, use this when you want to specify content explicitly. If you specify a filename, it uses file content as a main content.')
+  parser.add_argument('content', nargs='*', help='Content to ask')
+  parser.add_argument('-q', nargs='+', help='Content to ask, use this when you want to specify content explicitly.')
 
   args = parser.parse_args(args_in[1:])
 
-  if not auto_connect.check(vs, silent = True):
+  if not auto_connect.check(vs, silent=True):
     print("Network is not available", file=vs)
     return
 
-  gpt = chatgpt_util(vs)
-  if not gpt.read_api_key():
+  gpt_obj = chatgpt_agent(vs)
+  if not gpt_obj.read_api_key():
     return
+  gpt_obj.mode = 'plan' if args.plan else 'auto'
 
   message = ""
-  instructions = None
+  tts_response = False
 
   if args.voice and not args.q and not args.content:
     rec_file = "/sd/work/voice_rec.wav"
-    record_audio(vs, rec_file)
+    gpt.record_audio(vs, rec_file)
     print("Transcribing...", file=vs)
-    message = gpt.stt(rec_file)
+    message = gpt_obj.stt(rec_file)
     if not message:
       print("Failed to transcribe audio", file=vs)
       return
-    print(f"You (STT): {message}", file=vs)
-    instructions = "Response will be fed to OpenAI TTS engine. Optimize your responce for Text to speech. Basically keep it short, suitable input for your text to speech engine."
-    
+    print("You (STT): %s" % message, file=vs)
+    tts_response = True
   elif not args.content and not args.q:
-    message = get_message(vs)
+    if not args.chat:
+      message = gpt.get_message(vs)
   else:
     if args.content:
       message += ' '.join(args.content)
     if args.q:
-      if len(args.q) == 1 and file_exists(args.q[0]):
-        with open( args.q[0],"r") as f:
+      if len(args.q) == 1 and gpt.file_exists(args.q[0]):
+        with open(args.q[0], "r") as f:
           message = f.read()
       else:
         message += ' '.join(args.q)
-  if len(message) == 0:
+
+  if len(message) == 0 and not args.chat:
     return
 
   references = []
   images = []
 
-  message, _ , margs = parse_inline_directives(message, references, images, args, vs)
+  if message:
+    message, _, margs = gpt.parse_inline_directives(message, references, images, args, vs)
+  else:
+    margs = {}
 
   jp = margs['jp'] if 'jp' in margs else args.jp
-  
-  ex1 = " and answer in Japanese" if jp else  ""
-  message = message + ex1
   if jp:
-    setuni.main(vs, ['setuni'])
-    
-  ctime = time.gmtime(time.time() + pu.timezone * 60 * 15)
-  time_str = f"[User current time: {ctime[0]:04d}-{ctime[1]:02d}-{ctime[2]:02d} {ctime[3]:02d}:{ctime[4]:02d}]\n"
-  message = time_str + message
+    # Switch the terminal to the unicode font first so Japanese (and the IME
+    # pre-edit) can render. The IME itself stays off until toggled with Alt+`/j.
+    try:
+      setuni.main(vs, ['setuni'])
+      gpt_obj.jp_font_loaded = True
+    except Exception:
+      pass
 
-  log_filename = args.log_file
-  if log_filename == None:
-    log_filename = make_log_filename()
-
-  if args.agent:
-    idx = 0
-    while True:
-        start = message.find('[[', idx)
-        if start == -1:
-            break
-        end = message.find(']]', start)
-        if end == -1:
-            break
-        match = message[start+2:end]
-        idx = end + 2
-        if file_exists(match):
-            try:
-                with open(match, 'r') as f:
-                    references.append("---- " + match + " ----\n" + f.read())
-            except Exception as e:
-                print(f"Agent Mode: Error reading {match}: {e}", file=vs)
-        else:
-            print(f"Agent Mode: File {match} not found", file=vs)
-            
-    for auto_file in ["/sd/lib/data/agent_mode.md", "/sd/Documents/pd/README.md"]:
-        if file_exists(auto_file):
-            try:
-                with open(auto_file, 'r') as f:
-                    references.append("---- " + auto_file + " ----\n" + f.read())
-            except Exception:
-                pass
-                
-    agent_instruction = (
-        "CRITICAL INSTRUCTION: You are an autonomous agent operating on a MicroPython device. "
-        "You MUST execute commands by strictly using the markdown code blocks defined in agent_mode.md."
-        "(`[type]:filename`, `python:execute`, `iterate`). "
-    )
-    
-    if instructions:
-        instructions += "\n\n" + agent_instruction
-    else:
-        instructions = agent_instruction
-        
-    message += "\n\n[SYSTEM NOTE: Follow the critical rules in agent_mode.md to perform actions.]"
-
+  # Attach -f files / clipboard / -i images (sent on the first turn).
   if args.file:
-    files = args.file
-    for file in files:
+    for file in args.file:
       if file.startswith("http://") or file.startswith("https://"):
         references.append(file)
         continue
-        
       try:
-        with open(file,'r') as f:
+        with open(file, 'r') as f:
           references.append("---- " + file + " ----\n" + f.read())
-      except Exception as e:
-        print(f'Error when opening {file}', file=vs)
+      except Exception:
+        print("Error when opening %s" % file, file=vs)
         return
-  clipboard = margs['clipboard'] if 'clipboard' in margs else args.clipboard    
+
+  clipboard = margs['clipboard'] if 'clipboard' in margs else args.clipboard
   if clipboard:
     references.append(pdeck.clipboard_paste().decode("utf-8"))
-  
+
   if args.image:
-    image_paths = args.image
-    for img_path in image_paths:
+    for img_path in args.image:
       if img_path.startswith("http://") or img_path.startswith("https://"):
         images.append(img_path)
       else:
         try:
           with open(img_path, 'rb') as f:
             images.append(f.read())
-        except Exception as e:
-          print(f'Error when opening image {img_path}', file=vs)
+        except Exception:
+          print("Error when opening image %s" % img_path, file=vs)
           return
-  model = margs['model'] if 'model' in margs else args.model
-  if model in ('m','medium'):
-    model = 'ngpt-5.4'
-  elif model in ('h','high'):
-    model = 'gpt-5.5'
-  elif model in ('f','fast'):
-    model = 'gpt-5.4-mini'
+
+  model = resolve_model(margs['model'] if 'model' in margs else args.model)
 
   effort = margs['effort'] if 'effort' in margs else args.effort
   if effort not in ('low', 'medium', 'high'):
-    print(f"Invalid effort: {effort}. Using medium.", file=vs)
+    print("Invalid effort: %s. Using medium." % effort, file=vs)
     effort = 'medium'
 
-  if not args.silent:
-    _anim = ThinkingAnimation(vs, "Asking GPT..")
-    
-  raw_response = gpt.ask(gpt.make_json(message, references, images, model, instructions = instructions, effort=effort))
-  if not args.silent:
-    _anim.stop()
+  # Role / persona. Default is a plain assistant; -r picks a preset (plain,
+  # coder), a /sd/roles/<name>.txt file, or literal text. The coder preset also
+  # turns the tools on.
+  role, role_wants_agent = resolve_role(args.role)
+  agent = args.agent or (role_wants_agent is True)
 
-  if not raw_response:
+  # gptn's own screen, so we can tell the agent to switch the foreground back
+  # here when it wants the user to read its answer.
+  try:
+    my_screen = pdeck.get_screen_num()
+  except Exception:
+    my_screen = None
+
+  # Agent tools + auto-attached Pocket Deck references.
+  app_list = []
+  if agent:
+    app_list = load_app_list()
+    gpt_obj.app_list = app_list
+    if not args.silent:
+      print("Agent mode: %d app(s)." % len(app_list), file=vs)
+    references += load_agent_references(vs, silent=args.silent)
+
+  log_filename = args.log_file or gpt.make_log_filename()
+  jp_suffix = " and answer in Japanese" if jp else ""
+
+  # Mutable per-conversation config so slash commands can change it on the fly.
+  ctx = {
+    'model': model,
+    'effort': effort,
+    'role': role,
+    'tts': tts_response,
+    'agent': agent,
+    'app_list': app_list,
+    'instructions': assemble_instructions(role, tts_response, agent, app_list, my_screen),
+    'tools': build_tools(app_list, agent=agent, web_search=True),
+  }
+
+  def run_turn(turn_message, refs, imgs):
+    ctime = time.gmtime(time.time() + pu.timezone * 60 * 15)
+    time_str = "[User current time: %04d-%02d-%02d %02d:%02d]\n" % (ctime[0], ctime[1], ctime[2], ctime[3], ctime[4])
+    full = time_str + turn_message + jp_suffix
+    raw = gpt_obj.ask_agent(full, refs, imgs, ctx['model'], ctx['instructions'],
+                            ctx['effort'], ctx['tools'], silent=args.silent)
+    present_response(vs, gpt_obj, full, raw, args, margs, log_filename)
+    return raw
+
+  if not args.chat:
+    try:
+      run_turn(message, references, images)
+    finally:
+      pdeck.led(1, 0)
+      pdeck.led(2, 0)
     return
-  
-  no_format = margs['no_format'] if 'no_format' in margs else args.no_format
-  if no_format:
-    response = raw_response
-  else:
-    response = format(raw_response)
-  if response:
-    print(response, file=vs)
-    voice = margs['voice'] if 'voice' in margs else args.voice
-    if voice:
-      raw_response_sub = re.sub('\]\(ht.+?\)',']',raw_response)
-      
-      gc.collect()
-      if args.silent:
-        print("TTS processing..", file=vs)
-      else:
-        _anim = ThinkingAnimation(vs, "TTS..")
-      res = gpt.tts_stream(raw_response_sub, voice=args.voice_type)
-      if not args.silent:
-        _anim.stop()
-      print("TTS processing done", file=vs)
-      if res and res.status_code == 200:
-        # In MicroPython urequests, the raw socket is often .raw or .s
-        # If none exist, we try the object itself as a backup
-        stream = getattr(res, "raw", getattr(res, "s", res))
-        #print(f"Connecting stream... {type(stream)}", file=vs)
-        try:
-          play_audio_stream(vs, stream)
-        except Exception as e:
-          print(f"Streaming failed: {e}. Falling back to file mode.", file=vs)
-          # Re-save to file if possible or just report error
-          # For now, we've already consumed part of the stream, so fallback is tricky
-        res.close()
 
-    nosave = margs['nosave'] if 'nosave' in margs else args.nosave
-    if not nosave:
+  # ---- Conversation mode ----
+  history = []
+  pending_refs = []   # files queued via /file for the next message
+
+  def refresh():
+    ctx['instructions'] = assemble_instructions(ctx['role'], ctx['tts'], ctx['agent'], ctx['app_list'], my_screen)
+    ctx['tools'] = build_tools(ctx['app_list'], agent=ctx['agent'], web_search=True)
+
+  def mode_prompt():
+    # Replaces the old "You:" prompt; shows the current execution mode in bold,
+    # plus a kana marker while the Japanese IME is active.
+    label = '[Plan]' if gpt_obj.mode == 'plan' else '[Auto]'
+    jp_marker = ' あ' if gpt_obj.jp_ime else ''
+    return el.bold() + label + el.bold_off() + jp_marker + ': '
+
+  def toggle_mode():
+    gpt_obj.mode = 'auto' if gpt_obj.mode == 'plan' else 'plan'
+
+  def ensure_jp_font():
+    if not gpt_obj.jp_font_loaded:
       try:
-        saved_filename = save_log(message, raw_response, log_filename)
-        print(el.bold_off(), file=vs)
-        print(f"Saved to {saved_filename} and the filename copied to clipboard", file = vs)
-      except Exception as e:
-        print(f"Failed to save log: {e}", file=vs)
-      
-  if args.agent:
-    idx = 0
-    while True:
-      start = raw_response.find("```", idx)
-      while start != -1 and start != 0 and raw_response[start-1] != '\n':
-        start = raw_response.find("```", start + 1)
-        
-      if start == -1:
-        break
-        
-      end = raw_response.find("```", start + 3)
-      while end != -1 and raw_response[end-1] != '\n':
-        end = raw_response.find("```", end + 1)
-        
-      if end == -1:
-        break
-        
-      block = raw_response[start+3:end]
-      idx = end + 3
-      
-      first_nl = block.find('\n')
-      if first_nl == -1:
-        continue
-        
-      lang_tag = block[:first_nl].strip()
-      code = block[first_nl+1:]
-      
-      if ":" in lang_tag and lang_tag != "python:execute":
-        out_filename = lang_tag.split(":", 1)[1].strip()
-        print(f"{el.set_font_color(1)}Agent: Saving to {out_filename}{el.bold_off()}", file=vs)
-        
-        if file_exists(out_filename):
-          try:
-            os.stat("/sd/backup")
-          except OSError:
-            try:
-              os.mkdir("/sd/backup")
-            except:
-              pass
-          base = out_filename.split("/")[-1]
-          ctime = time.gmtime(time.time()+pu.timezone*60*15)
-          backup_name = f"/sd/backup/{base}_{ctime[1]:02}{ctime[2]:02}_{ctime[3]:02}{ctime[4]:02}"
-          try:
-            os.rename(out_filename, backup_name)
-            print(f"{el.set_font_color(1)}Agent: Backing up original file to {backup_name}{el.reset_font_color()}", file=vs)
-          except:
-            pass
-            
-        try:
-          with open(out_filename, "w") as f:
-            f.write(code)
-        except Exception as e:
-          print(f"{el.set_font_color(1)}Agent: Failed to write {out_filename}: {e}{el.reset_font_color()}", file=vs)
-          
-      elif lang_tag == "python:execute":
-        print(f"{el.set_font_color(1)}Agent: Executing python block...{el.reset_font_color()}", file=vs)
-        try:
-          exec_locals = {'vs': vs, 'pdeck': pdeck}
-          exec(code, globals(), exec_locals)
-        except Exception as e:
-          print(f"{el.set_font_color(1)}Agent: Execution Error: {e}{el.reset_font_color()}", file=vs)
-          
-      elif lang_tag == "iterate":
-        print(  f"{el.set_font_color(1)}Agent: Iterating...{el.reset_font_color()}", file=vs)
+        setuni.main(vs, ['setuni'])
+        gpt_obj.jp_font_loaded = True
+      except Exception:
+        pass
 
-        # Skipping the model and effort if AI put them
-        iter_args_in = code.split()
-        iter_args = []
-        skip = False
-        for item in iter_args:
-          if skip:
-            skip = False
-            continue
-          if item in  ('-m', '-e'):
-            skip = True
-            continue
-          iter_args.args.append(item)
-       
-        iter_args = ['gpt', '-m', args.model, '-e', args.effort ] + code.split()
-        has_log_file = False
-        for item in iter_args:
-          if item == '--log-file':
-            has_log_file = True
-            break
-        if not has_log_file:
-          iter_args.extend(['--log-file', log_filename])
-        for i, item in enumerate(iter_args):
-          if item == '-q':
-            iter_args = iter_args[0:i+1] + [" ".join(iter_args[i+2:])]
-            break
-        print(f"{el.set_font_color(1)}Agent: Calling main with {iter_args}{el.reset_font_color()}", file=vs)
-        main(vs, iter_args)
-        print(el.bold_off(), file=vs)
+  def toggle_ime():
+    gpt_obj.jp_ime = not gpt_obj.jp_ime
+    if gpt_obj.jp_ime:
+      ensure_jp_font()
+    return gpt_obj.jp_ime
+
+  def show_help():
+    print(
+      "Commands:\n"
+      "  /help              this help\n"
+      "  /quit  /exit       leave conversation\n"
+      "  /clear /reset      start fresh (clear server-side context)\n"
+      "  /model [name]      show or set model (m/medium, h/high, f/fast, or id)\n"
+      "  /effort [level]    show or set reasoning effort (low|medium|high)\n"
+      "  /role [name|text]  show/set role: presets 'assistant' or 'coder' (resets context)\n"
+      "  /tools             toggle function-calling tools (agent) on/off\n"
+      "  /mode [auto|plan]  show/set execution mode (no arg toggles); also /auto, /plan\n"
+      "  /file <path>       attach a file as reference for the next message\n"
+      "  /history           show recent input history\n"
+      "Plan mode confirms each command_with_return / write_file before it runs.\n"
+      "Japanese input: Alt+` or Alt+j toggles the kana IME (best with -j font).\n"
+      "Editing: arrows move, Up/Down history, Ctrl-A/E start/end, Ctrl-K/U kill, Ctrl-C cancel, Shift-Tab toggles mode.",
+      file=vs)
+
+  def handle_command(line):
+    """Return False to quit, True to keep chatting."""
+    parts = line[1:].split()
+    if not parts:
+      return True
+    cmd = parts[0].lower()
+    arg = line[1 + len(parts[0]):].strip()
+    if cmd in ('quit', 'exit', 'q'):
+      return False
+    elif cmd in ('help', 'h', '?'):
+      show_help()
+    elif cmd in ('clear', 'reset', 'new'):
+      gpt_obj.prev_response_id = None
+      print("New conversation (context cleared).", file=vs)
+    elif cmd == 'model':
+      if arg:
+        ctx['model'] = resolve_model(arg)
+      print("Model: %s" % ctx['model'], file=vs)
+    elif cmd == 'effort':
+      if arg in ('low', 'medium', 'high'):
+        ctx['effort'] = arg
+      elif arg:
+        print("Effort must be low|medium|high.", file=vs)
+      print("Effort: %s" % ctx['effort'], file=vs)
+    elif cmd == 'role':
+      if arg:
+        rtext, rwants = resolve_role(arg)
+        ctx['role'] = rtext
+        if rwants and not ctx['agent']:
+          ctx['agent'] = True
+          if not ctx['app_list']:
+            ctx['app_list'] = load_app_list()
+            gpt_obj.app_list = ctx['app_list']
+        refresh()
+        gpt_obj.prev_response_id = None
+        print("Role set to '%s'%s (context reset)." %
+              (arg, " (tools on)" if ctx['agent'] else ""), file=vs)
+      else:
+        print("Role presets: assistant, coder. Current role:\n%s" %
+              (ctx['role'] or DEFAULT_ROLE), file=vs)
+    elif cmd in ('mode', 'auto', 'plan'):
+      if cmd == 'auto':
+        gpt_obj.mode = 'auto'
+      elif cmd == 'plan':
+        gpt_obj.mode = 'plan'
+      elif arg in ('auto', 'plan'):
+        gpt_obj.mode = arg
+      elif not arg:
+        toggle_mode()              # /mode with no argument flips it
+      else:
+        print("Mode must be auto|plan.", file=vs)
+      print("Mode: %s%s" % (gpt_obj.mode,
+            " (confirms command_with_return / write_file)" if gpt_obj.mode == 'plan' else ""), file=vs)
+    elif cmd in ('tools', 'agent'):
+      ctx['agent'] = not ctx['agent']
+      if ctx['agent'] and not ctx['app_list']:
+        ctx['app_list'] = load_app_list()
+        gpt_obj.app_list = ctx['app_list']
+      refresh()
+      print("Tools %s." % ("on" if ctx['agent'] else "off"), file=vs)
+    elif cmd == 'file':
+      if not arg:
+        print("Usage: /file <path>", file=vs)
+      elif gpt.file_exists(arg):
+        try:
+          with open(arg, "r") as f:
+            pending_refs.append("---- " + arg + " ----\n" + f.read())
+          print("Attached %s for the next message." % arg, file=vs)
+        except Exception as e:
+          print("Error reading %s: %s" % (arg, e), file=vs)
+      else:
+        print("Not found: %s" % arg, file=vs)
+    elif cmd in ('history', 'hist'):
+      for h in history[-20:]:
+        print("  " + h, file=vs)
+    else:
+      print("Unknown command: /%s  (try /help)" % cmd, file=vs)
+    return True
+
+  print("Conversation mode. /help for commands, /quit to exit.", file=vs)
+  print("Mode: %s (Shift-Tab or /mode to switch; Plan confirms commands & writes)." % gpt_obj.mode, file=vs)
+  if jp_input is not None:
+    print("Japanese: Alt+` or Alt+j toggles kana input%s." %
+          ("" if jp else " (use -j for the unicode font)"), file=vs)
+
+  sent_initial = False
+  first = True
+  while True:
+    if first and message:
+      line = message.strip()
+    else:
+      line = read_line(vs, mode_prompt, history, on_shift_tab=toggle_mode,
+                       allow_ime=(jp_input is not None), ime_on=gpt_obj.jp_ime,
+                       on_ime_toggle=toggle_ime)
+      if line is None:        # Ctrl-C cancelled this line
+        first = False
+        continue
+      line = line.strip()
+    first = False
+
+    if not line:
+      continue
+    if not history or history[-1] != line:
+      history.append(line)
+
+    if line[0] == '/':
+      if not handle_command(line):
+        print("Bye.", file=vs)
+        break
+      continue
+
+    turn_refs = list(pending_refs)
+    pending_refs[:] = []
+    turn_imgs = []
+    if not sent_initial:
+      turn_refs = references + turn_refs
+      turn_imgs = images
+      sent_initial = True
+    # A turn must never drop the user out of the conversation: contain any
+    # failure (network error, etc.) and keep prompting. (ask_agent only commits
+    # prev_response_id on a clean response, so a thrown turn leaves the prior
+    # context intact and the next prompt can continue.)
+    try:
+      run_turn(line, turn_refs, turn_imgs)
+    except BaseException as e:
+      print("\n[Turn failed; you can keep going] %r" % (e,), file=vs)
+
+  pdeck.led(1, 0)  # leaving conversation: clear status LEDs
+  gpt_obj.led2_gen += 1  # invalidate any pending auto-off timer
+  pdeck.led(2, 0)

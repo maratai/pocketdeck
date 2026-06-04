@@ -8,7 +8,7 @@ import pdeck
 import esclib as elib
 import audio
 import fontloader
-import gpt
+import gpt_l as gpt
 import json
 import misc_utils
 import gc

@@ -185,6 +185,10 @@
             "dic.py"
         ],
         [
+            "diff.py",
+            "diff.py"
+        ],
+        [
             "docs.py",
             "docs.py"
         ],
@@ -319,6 +323,10 @@
         [
             "gpt.py",
             "gpt.py"
+        ],
+        [
+            "gpt_l.py",
+            "gpt_l.py"
         ],
         [
             "gpt_rt.py",
@@ -656,7 +664,7 @@
         },
         {
             "path": "tts.py",
-            "md5": "7b93395d3a1e5394eb9a5debd0d3db91"
+            "md5": "7f69f380b0bda1c8db18a086aef099ce"
         },
         {
             "path": "rm.py",
@@ -736,15 +744,19 @@
         },
         {
             "path": "flashcards.py",
-            "md5": "841d5b68b311ff13b08a78ca47b4151d"
+            "md5": "c4d7e06996bac03dbb2e0fd7a648f3ad"
         },
         {
             "path": "mv.py",
             "md5": "238690265928f863d00ff12d50a399e2"
         },
         {
+            "path": "gpt_l.py",
+            "md5": "5ce66b202029550fd41da0b4f6ad24e9"
+        },
+        {
             "path": "gpt_rt.py",
-            "md5": "904eaabec2f60dee3230cb0c501da4a6"
+            "md5": "53e6395b1b2859e445447f708bc77d4b"
         },
         {
             "path": "setjpf.py",
@@ -756,7 +768,11 @@
         },
         {
             "path": "gpt.py",
-            "md5": "5ce66b202029550fd41da0b4f6ad24e9"
+            "md5": "df4bebc376adb6d33ec29d14a33793a8"
+        },
+        {
+            "path": "diff.py",
+            "md5": "5f98defe6d17515ef79b5b5e61adaec0"
         },
         {
             "path": "ls.py",
@@ -780,7 +796,7 @@
         },
         {
             "path": "stt.py",
-            "md5": "5430c4049c2b18a63b81e40d82f6cb84"
+            "md5": "7fbba3848d155170dad59c4e8c44a57d"
         },
         {
             "path": "reader.py",

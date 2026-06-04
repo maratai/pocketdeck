@@ -2,7 +2,7 @@ import network, socket, ssl, ubinascii, ujson, urandom, time
 import audio, codec_config, pdeck, pdeck_utils as pu
 import os, sys, io
 import argparse
-import gpt
+import gpt_l as gpt
 import gc
 import esclib
 import setuni

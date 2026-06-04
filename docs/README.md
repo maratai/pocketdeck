@@ -206,7 +206,38 @@ setuni | Change terminal font to CJK Unicode font,.
 setjpf | Change terminal font to Japanese. It's lighter than setuni.
 grep pattern [path] | Search text in files. `-r` recursive, `-e` regex, `-n` line numbers, `-i` ignore case, `-l` filenames only, `--include .py,.md` filter by extension, `--max N` skip files larger than N bytes.
 curl [options] url | HTTP client for simple web requests. Supports `http://` and `https://`, `-o FILE` to save body to file, `-X METHOD` to choose request method, `-d DATA` to send request body, `-i` to include response headers, `-s` for silent mode, and `-V` to show version. `-H` for header.
+diff [options] left right | Compare two text files. Supports unified and side-by-side views, paging, output to file, and configurable context lines.
 qr [text...] | Generate and display a QR code centered on the screen. Supports `-c` to read from the clipboard.
+
+### diff
+
+`diff` compares two text files and shows added, removed and changed lines. By default it prints a unified view with a few context lines around each change.
+
+```
+diff [options] left_file right_file
+```
+
+Options:
+
+- `-a` or `--all` : Show all unchanged lines in one unified output instead of compacting unchanged blocks.
+- `-c N` or `--context N` : Number of context lines around each change. Default is 2.
+- `-y` or `--side-by-side` : Show left and right files in side-by-side view.
+- `-w N` or `--width N` : Target width for side-by-side view. By default it uses terminal width.
+- `-l N` or `--lookahead N` : Anchor search window used while matching nearby changed lines. Default is 12.
+- `-m` or `--more` : Pause every page and wait for a key. Press `q` to quit paging.
+- `-o FILE` or `--output FILE` : Write diff output to a file instead of the terminal.
+- `-p` or `--plain` : Disable syntax highlighting / terminal escape sequences.
+- `--style` : Force syntax highlighting even when `-o` is used.
+
+Examples:
+
+```
+diff old.txt new.txt
+diff -y notes_before.md notes_after.md
+diff -o /sd/work/readme.diff README_old.md README.md
+```
+
+In side-by-side view, `<` marks lines only on the left, `>` marks lines only on the right, and `!` marks changed lines on both sides.
 
 ## SSH/SCP setup guide
 
