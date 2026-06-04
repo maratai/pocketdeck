@@ -51,11 +51,11 @@ def _split_query(q):
     if dirname == '':
       dirname = '/'
 
-  return dirname, '^' + filename.replace('.','\.').replace('*','.*') + '$', q
+  return dirname, '^' + filename.replace('.','\\.').replace('*','.*') + '$', q
 
-def _collect_recursive(dirname, pat, out):
+def _collect_recursive(dirname, pat, out, reverse=False):
   try:
-    ret = os.listdir(dirname)
+    ret = sorted(os.listdir(dirname), reverse=reverse)
   except Exception:
     return
 
@@ -66,7 +66,7 @@ def _collect_recursive(dirname, pat, out):
     if match:
       filelist.append(file)
     if _is_dir(full):
-      _collect_recursive(full, pat, out)
+      _collect_recursive(full, pat, out, reverse)
 
   if len(filelist) > 0:
     out.append([dirname, filelist])
@@ -76,11 +76,9 @@ month_list = ( \
     "May","June", "July", "August","September", \
     "October","November", "December" )
 
-def list_file(q, recursive=False):
+def list_file(q, recursive=False, reverse=False):
   q = _normalize_query_path(q)
   dirname, filename, original = _split_query(q)
-  #print(f"dirname:{dirname} ")
-  #print(f"filename:{filename} ")
   try:
     if not _is_dir(original):
       os.listdir(dirname)
@@ -92,7 +90,7 @@ def list_file(q, recursive=False):
 
   if recursive:
     out = []
-    _collect_recursive(dirname, pat, out)
+    _collect_recursive(dirname, pat, out, reverse)
     if len(out) == 0:
       return None
     return out
@@ -111,6 +109,7 @@ def list_file(q, recursive=False):
   if len(filelist) == 0:
     return None
 
+  filelist.sort(reverse=reverse)
   return [ dirname, filelist ]
 
 def _print_group(vs, dirname, filelist, detailed):
@@ -132,13 +131,14 @@ def main(vs,args_in):
             description='list file')
   parser.add_argument('-c', '--clip',action='store',help='Copy specified index filename to clipboard. -1 means the last one', default='-1000')
   parser.add_argument('-l', '--list',action='store_true', help='list files')
-  parser.add_argument('-r', '--recursive', action='store_true', help='search recursively')
+  parser.add_argument('-r', '--reverse', action='store_true', help='reverse sort order')
+  parser.add_argument('-R', '--recursive', action='store_true', help='search recursively')
   parser.add_argument('path',nargs='?', help='Path', default = '.')
 
   args = parser.parse_args(args_in[1:])
   q = args.path
 
-  ret = list_file(q, args.recursive)
+  ret = list_file(q, args.recursive, args.reverse)
   if not ret:
     print('No matched files', file=vs)
     return
@@ -172,7 +172,7 @@ def main(vs,args_in):
     if file_index != -1000:
       try:
         filename = filelist[file_index]
-      except IndexError as e:
+      except IndexError:
         print(f"Index {file_index} was out of range.", file=vs)
         return
       filename = _join_path(ret[0], filename)

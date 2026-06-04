@@ -760,7 +760,7 @@
         },
         {
             "path": "ls.py",
-            "md5": "a19a4f0559a0b58d505dd0152b94f939"
+            "md5": "d308d1ec74694a96e21c4485864fcb21"
         },
         {
             "path": "cd.py",
@@ -1084,7 +1084,7 @@
         },
         {
             "path": "data/apps_db.json",
-            "md5": "c241d17adfe4e72f4cf504b447735282"
+            "md5": "fd270b3d2729fa843baee93015553125"
         },
         {
             "path": "data/cat3.xbmr",

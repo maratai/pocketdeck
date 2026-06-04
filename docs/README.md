@@ -191,7 +191,7 @@ Here are some basic commands written by Python.
 
 command | summary
 --------|---------
-ls [path] | List files. Supports wildcards (e.g. `ls *.py`). `-l` for detailed view with size and date. `-r` for recursive search. `-c N` to copy filename at index N to clipboard (-1 for last).
+ls [path] | List files. Supports wildcards (e.g. `ls *.py`). `-l` for detailed view with size and date. `-R` for recursive search, '-r' for reverse order. `-c N` to copy filename at index N to clipboard (-1 for last).
 cp src dst | Copy file(s). Supports wildcards in src. `-r` for recursive copy. dst can be a directory when copying multiple files.
 mv src dst | Move file
 mkdir dir_name | Create a directory
