@@ -113,30 +113,31 @@ def _parse_cmd_string(text):
 def build_agent_instructions(app_list, my_screen=None):
   """System prompt describing the function tools (mirrors gpt_rt.py)."""
   text = (
-    "You are an autonomous coding assistant running on a MicroPython Pocket Deck "
-    "device. Your main job is to write, run, and debug MicroPython code directly "
-    "on the device using the provided function tools. Prefer calling a tool to "
-    "gather facts or test code instead of guessing.\n"
-    "Writing and verifying code is the core loop: use write_file to create or "
-    "edit a MicroPython file, then use command_with_return to RUN it and read the "
-    "captured output, fix any errors, and re-run until it works. A runnable "
-    "script/app is a module that defines main(vs, args); you run it by passing its "
-    "name (plus arguments) to command_with_return. After you EDIT a script and "
-    "run it again, prefix the command with 'r ' (e.g. 'r temp_foo') so the module "
-    "is reloaded — without it the old cached code runs instead of your edits. "
-    "Keep scratch/experimental scripts in /sd/py with names starting temp_* and "
-    "rm them when finished. "
-    "A script's main(vs, args) receives an output stream as its first argument; "
-    "write results with print(..., file=vs) so command_with_return can capture "
-    "and return that output to you (plain print() goes to the REPL and is NOT "
-    "captured). ALWAYS run code to confirm it behaves correctly before telling the "
-    "user it is done — do not claim something works without having executed it.\n"
+    "You have function tools for working directly on the device;\n"
+    "A runnable script/app is a module that defines main(vs, args); run it by "
+    "passing its name (plus arguments) to command_with_return. After you EDIT a "
+    "script and run it again, prefix the command with 'r ' (e.g. 'r temp_foo') so "
+    "the module is reloaded — without it the old cached code runs instead of your "
+    "edits. Keep scratch/experimental scripts in /sd/py with names starting temp_* "
+    "and rm them when finished. "
+    "main(vs, args) receives an output stream as its first argument; write results "
+    "with print(..., file=vs) so command_with_return can capture and return that "
+    "output to you (plain print() goes to the REPL and is NOT captured).\n"
     "Use command_with_return to look up information too (e.g. list files with "
-    "'ls /sd/Documents/word*', read a file with 'cat /path', search with grep). "
-    "Always call it when the user asks about files, code, or device state.\n"
+    "'ls /sd/Documents/word*', read a file with 'cat /path', search with grep).\n "
+    "BE TOKEN-EFFICIENT WITH TOOL CALLS. Each command_with_return call is "
+    "expensive, so make every one count: think before you call, get the command "
+    "syntax right the first time, and prefer one precise command over several "
+    "exploratory ones. Pocket Deck is not Linux. Read README.md and use only the options "
+    "that is mentioned in the manual."
+    "cat, grep, ls, head, tail are great tools to reduce funciton calls. See README.md for full command list.\n"
     "You can see and drive other apps running on the device. Use list_running_apps "
     "to see which app is on which screen. Use switch_screen to bring a screen to "
-    "the foreground. Use capture_screen to take a screenshot of a screen and look "
+    "the foreground. IMPORTANT: screen numbers in these tools are 0-based and match "
+    "what list_running_apps reports (screen 0 is the Python REPL), but the device's "
+    "GUI shows them 1-based, so the screen the user calls '2' is screen 1 here — "
+    "always pass the 0-based number from list_running_apps, not the GUI number. "
+    "Use capture_screen to take a screenshot of a screen and look "
     "at it (it is returned to you as an image); it takes some time, so do not "
     "request screenshots at a high rate. Use send_keys to type into the app in the "
     "foreground; set enter=true to press Enter, and use escape sequences for "
@@ -175,7 +176,7 @@ def build_tools(app_list, agent=False, web_search=True):
   tools.append({
     "type": "function",
     "name": "command_with_return",
-    "description": "Run a device command (or any installed module) and return its captured output. This is your primary tool for TESTING AND VERIFYING CODE: after you write a script with write_file, run it here by name and read the output to confirm it works, see errors, and iterate. A runnable script/app is a module exposing main(vs, args); invoke it by its name plus arguments, e.g. 'temp_foo arg1' for /sd/py/temp_foo.py, or any existing app/command. IMPORTANT: if you EDIT a script and run it again, prefix the command with 'r ' to reload it (e.g. 'r temp_foo arg1') — without 'r' the previous, cached version runs instead of your new code. Built-in commands include: ls (glob patterns like 'word*'; 'ls -r path' lists recursively), cat (read file), head, tail, rm, mv, cp, mkdir, rmdir, grep (search in files), ping, dic (dictionary lookup), curl (fetch web content), and 'analog_clock_set_timer <minutes>'. No shell pipes ('|') — this is not Linux. See README.md for command usage.",
+    "description": "Run a device command (or any installed module) and return its captured output. This is your primary tool for TESTING AND VERIFYING CODE: after you write a script with write_file, run it here by name and read the output to confirm it works, see errors, and iterate. A runnable script/app is a module exposing main(vs, args); invoke it by its name plus arguments, e.g. 'temp_foo arg1' for /sd/py/temp_foo.py, or any existing app/command. IMPORTANT: if you EDIT a script and run it again, prefix the command with 'r ' to reload it (e.g. 'r temp_foo arg1') — without 'r' the previous, cached version runs instead of your new code. Built-in commands include: ls (glob patterns like 'word*'; 'ls -r path' lists recursively), cat (read file), head, tail, rm, mv, cp, mkdir, rmdir, grep (search in files), ping, dic (dictionary lookup), curl (fetch web content), and 'analog_clock_set_timer <minutes>'. grep behaves like Linux grep: the PATTERN is a regex by default (no -e needed), with -i ignore-case, -n line numbers, -r recursive, -l filenames only, -v invert, -F literal/fixed-string match, and --include .py,.md to filter by extension; e.g. 'grep -rn \"def .*main\" /sd/py'. No shell pipes ('|') — this is not Linux, so do NOT chain commands or use redirects, backticks, &&, or subshells; run one command at a time. See README.md for command usage.",
     "parameters": {
       "type": "object",
       "properties": {
@@ -260,6 +261,19 @@ def build_tools(app_list, agent=False, web_search=True):
         "screen": {"type": "integer", "description": "Optional screen number to switch to and capture. If omitted, captures the current foreground screen."}
       },
       "required": []
+    }
+  })
+
+  tools.append({
+    "type": "function",
+    "name": "launch_command_shell",
+    "description": "Launch a new command-line shell on a given screen so you can drive it with switch_screen / send_keys / capture_screen (e.g. to run interactive commands that command_with_return cannot). The screen number is 0-based and matches list_running_apps (screen 0 is the Python REPL). Valid screens are 2-9; the screen must be free (nothing already running there). Returns whether the shell was started.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "screen": {"type": "integer", "description": "0-based screen number to start the shell on (2-9, must be free)"}
+      },
+      "required": ["screen"]
     }
   })
 
@@ -552,6 +566,8 @@ class chatgpt_agent(gpt.chatgpt_util):
       return self.execute_capture_screen(arguments)
     if name == "send_keys":
       return self.execute_send_keys(arguments)
+    if name == "launch_command_shell":
+      return self.execute_launch_command_shell(arguments)
     if name == "launch_app":
       return self.execute_launch_app(arguments)
     return "Unknown function: %s" % name
@@ -735,6 +751,23 @@ class chatgpt_agent(gpt.chatgpt_util):
       return "Error sending keys: %s" % str(e)
     return "Sent %d key(s)" % len(text)
 
+  def execute_launch_command_shell(self, arguments):
+    try:
+      args = ujson.loads(arguments) if arguments else {}
+      scnum = int(args.get("screen"))
+    except:
+      return "Error: invalid arguments"
+    if pdeck.cmd_exists(scnum):
+      return "Error: screen %d is already in use" % scnum
+    try:
+      ok = pdeck.command_shell(scnum)
+    except Exception as e:
+      return "Error launching command shell: %s" % str(e)
+    if not ok:
+      return ("Error: could not launch a shell on screen %d (must be a free "
+              "screen 2-9 other than the current one)" % scnum)
+    return "Launched a command shell on screen %d" % scnum
+
   def _search_free_screen(self, launched, scnum=2):
     while True:
       if not pdeck.cmd_exists(scnum) and scnum not in launched:
@@ -843,7 +876,8 @@ TTS_NOTE = ("Your reply will be fed to a TTS engine; optimize for text-to-speech
 
 # Auto-attached in agent mode so the model knows Pocket Deck basics.
 DEFAULT_AGENT_REFS = ["/sd/Documents/pd/README.md",
-                      "/sd/Documents/pd/gpt_output_rules.md"]
+                      "/sd/Documents/pd/gpt_output_rules.md",
+                      "/sd/Documents/pd/gpt_readme.md"]
 
 # Named role presets so users don't have to write a persona from scratch.
 # Maps name -> (role_text, wants_agent). wants_agent=True turns on the tools.

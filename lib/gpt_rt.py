@@ -92,7 +92,7 @@ def build_session_instructions(model, file_list, references, app_list=None, agen
 
   if agent:
     text += "\nUse command_with_return to look up information before answering (e.g. list files with 'ls /sd/Documents/word*', read a file with 'cat /path'). Always call it when the user asks about files or device state.\nUse write_file to create or save files on the device filesystem before launching an app that needs them.\nWhen you get a logical question which can be solved by writing code, you can write Micropython code temporarily on /sd/py, filename starts temp_*, then delete after the creation (rm command). \n"
-    text += "\nYou can see and drive other apps running on the device. Use list_running_apps to see which app is on which screen. Use switch_screen to bring a screen to the foreground. Use capture_screen to take a screenshot of a screen and look at it (it is sent to you as an image) it take some time (about 0.3s), so requesting screenshot at high rate is not recommended. Use send_keys to type into the app currently in the foreground; include a newline or set enter=true to press Enter, and use escape sequences for special keys (Up=\\x1b[A, Down=\\x1b[B, Right=\\x1b[C, Left=\\x1b[D, Esc=\\x1b, Backspace=\\x08, Ctrl-X=\\x18). After acting, capture_screen again to confirm the result before continuing.\n"
+    text += "\nYou can see and drive other apps running on the device. Use list_running_apps to see which app is on which screen. Use switch_screen to bring a screen to the foreground. IMPORTANT: screen numbers in these tools are 0-based and match what list_running_apps reports (screen 0 is the Python REPL), but the device's GUI shows them 1-based, so the screen the user calls '2' is screen 1 here — always pass the 0-based number from list_running_apps, not the GUI number. Use capture_screen to take a screenshot of a screen and look at it (it is sent to you as an image) it take some time (about 0.3s), so requesting screenshot at high rate is not recommended. Use send_keys to type into the app currently in the foreground; include a newline or set enter=true to press Enter, and use escape sequences for special keys (Up=\\x1b[A, Down=\\x1b[B, Right=\\x1b[C, Left=\\x1b[D, Esc=\\x1b, Backspace=\\x08, Ctrl-X=\\x18). After acting, capture_screen again to confirm the result before continuing.\n"
     if app_list:
       text += "\nUse launch_app to open apps. Pass optional args (e.g. a file path) to open a specific file. Available apps:\n"
       for item in app_list:
@@ -561,7 +561,7 @@ class RealtimeAgent:
         {
           "type": "function",
           "name": "switch_screen",
-          "description": "Bring a screen to the foreground so it becomes active. Required before capturing or sending keys to that screen. Note the screen number in the functionis 0-based, however, scren number shown in GUI is 1-base. so if user wants to switch screen 2, send 1 as an argument.",
+          "description": "Bring a screen to the foreground so it becomes active. Required before capturing or sending keys to that screen. The screen number here is 0-based and matches what list_running_apps reports (screen 0 is the Python REPL), but the GUI shows screen numbers 1-based. So if the user wants to switch to screen 2, send 1 as the argument.",
           "parameters": {
             "type": "object",
             "properties": {

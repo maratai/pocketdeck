@@ -168,7 +168,7 @@ def _pick_source(cmd, cursor, screen_num):
   info = db.get(first, {})
   if prefix.startswith('-'):
     return 'arg', _candidates_flags(first, prefix), rs, re_
-  if _looks_like_path(prefix) or info.get('takes_file'):
+  if True: #_looks_like_path(prefix) or info.get('takes_file'):
     files = _candidates_files(prefix)
     if files:
       return 'arg', files, rs, re_

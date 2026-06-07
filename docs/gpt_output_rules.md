@@ -20,4 +20,8 @@ Otherwise, the output goes to screen 0.
 
 You must use /sd/work to store temporarily files.
 
+## Python folder
+
+- /sd/lib is for system apps. You must put python code under /sd/py unless user tell you to do.
+
 

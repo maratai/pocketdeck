@@ -8,12 +8,17 @@
 The default filename is `journal.md`
 
 ```
-journal [filename] 
+journal [filename] [filename]..
 ```
+
+Filename can be directory or wildcard.
+
 
 - `r`: Reload chart
 - Up and Down: Move to previous or next month
 - Left or Right: Change graph
+- touchpad : Show date indicator
+- slider : Scroll achievement table when it has more than 5 items.
 - 'q': Quit
 
 ## Markdown Syntax
@@ -48,6 +53,8 @@ The script expects One journal file has multiple entries.
 
 Header with date recognizes as a journal entry.
 The date format is <yyyy-mm-dd>. `analog_clock` has a feature to copy date to clipboard.
+
+If you prefer to make one Markdown file per date, YYYY-MM-DD.md is also supported.
 
 Date order can be both (Recent entry is the top of the file, or the last of the file)
 

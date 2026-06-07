@@ -42,7 +42,7 @@ def _file_size(path):
 
 def grep_path(pattern, path=".", recursive=False, show_line_numbers=False,
               ignore_case=False, list_files_only=False, includes=None,
-              max_bytes=None, out=None, regex= False):
+              max_bytes=None, out=None, regex=True, invert=False):
   if out is None:
     out = sys.stdout
   if includes is None:
@@ -50,9 +50,20 @@ def grep_path(pattern, path=".", recursive=False, show_line_numbers=False,
   else:
     includes = includes.split(',')
 
-  pat = pattern.lower() if ignore_case else pattern
-  pat = re.compile(pat) if regex else pat
-  print(pat)
+  pat_src = pattern.lower() if ignore_case else pattern
+  # Linux-like default: pattern is a regex. MicroPython's `re` is a limited
+  # subset, so if the pattern can't compile, fall back to literal substring
+  # search instead of raising (which would waste a caller's retry/tokens).
+  use_regex = regex
+  if use_regex:
+    try:
+      pat = re.compile(pat_src)
+    except Exception:
+      out.write("grep: unsupported regex, falling back to literal match\n")
+      pat = pat_src
+      use_regex = False
+  else:
+    pat = pat_src
 
   def allowed_file(p):
     #if p != 'tasks.md':
@@ -84,7 +95,10 @@ def grep_path(pattern, path=".", recursive=False, show_line_numbers=False,
         for line in f:
           ln += 1
           s = line.rstrip("\n")
-          if _match_line(s, pat, ignore_case, regex):
+          hit = bool(_match_line(s, pat, ignore_case, use_regex))
+          if invert:
+            hit = not hit
+          if hit:
             matched_this_file = True
             if list_files_only:
               out.write(fp + "\n")
@@ -116,8 +130,12 @@ def build_parser():
   )
   parser.add_argument("pattern", help="Search pattern")
   parser.add_argument("path", nargs="?", default=".", help="File or directory to search")
-  parser.add_argument("-r", "--recursive", action="store_true", help="Recursive search")
-  parser.add_argument("-e", "--regex", action="store_true", help="RegEx search")
+  parser.add_argument("-r", "-R", "--recursive", action="store_true", help="Recursive search")
+  # Pattern is a regex by default (Linux-like). -E is accepted as an alias and
+  # -e is kept for backward compatibility; both are no-ops now. Use -F for literal.
+  parser.add_argument("-e", "-E", "--regex", action="store_true", help="(default) treat pattern as a regex")
+  parser.add_argument("-F", "--fixed-strings", action="store_true", dest="fixed", help="Treat pattern as a literal string, not a regex")
+  parser.add_argument("-v", "--invert-match", action="store_true", dest="invert", help="Select non-matching lines")
   parser.add_argument("-n", action="store_true", dest="show_line_numbers", help="Show line numbers")
   parser.add_argument("-i", "--ignore-case", action="store_true", dest="ignore_case", help="Ignore case")
   parser.add_argument("-l", action="store_true", dest="list_files_only", help="Show filenames only")
@@ -143,7 +161,6 @@ def main(vs, argv):
   except SystemExit:
     return 2
 
-  print(f"pat:{args.pattern}, re={args.regex}")
   grep_path(
     args.pattern,
     path=args.path,
@@ -154,7 +171,8 @@ def main(vs, argv):
     includes=args.include,
     max_bytes=args.max_bytes,
     out=vs,
-    regex=args.regex
+    regex=not args.fixed,
+    invert=args.invert
   )
   return 0
 

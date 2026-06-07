@@ -56,6 +56,16 @@ def main(vs, args):
 `
   },
 
+  'graph': {
+    label: 'Graph',
+    desc: 'Obsidian-style link graph of /sd/Documents. D-Pad/touchpad pan, slider zooms, Enter opens, q quits. Ctrl-s to start incremental search. Bottom right button to re-root node, Bottom left button to go its parent',
+    // Open the demo vault's hub note (home.md) so the graph is well connected.
+    code: `import graph
+def main(vs, args):
+  graph.main(vs, ['graph', 'home.md'])
+`
+  },
+
 };
 
 // ── Worker machinery ─────────────────────────────────────────────────────────
@@ -84,14 +94,31 @@ self.onmessage = async (e) => {
       self.emulator_data   = new Uint8Array(sab, 64, RING);
       self.emulator_kstate = new Uint8Array(sab, 64 + RING, KSTATE);
       // kMeta[4] = dial position (0..255, 0xff = not touched)
+      // kMeta[5]/[6] = touchpad X (0..100) / Y (0..80), 0xff = not touched
+      // kMeta[7] = touchpad button bits (bit0 = left pad, bit1 = right pad)
       Atomics.store(self.emulator_meta, 4, 255);
+      Atomics.store(self.emulator_meta, 5, 255);
+      Atomics.store(self.emulator_meta, 6, 255);
+      Atomics.store(self.emulator_meta, 7, 0);
 
       // Allow Python (send_char) to inject keys into the same ring.
       self.emulator_push_key = (str) => {
         const meta = self.emulator_meta, data = self.emulator_data;
         const bytes = new TextEncoder().encode(str);
         let head = Atomics.load(meta, 0);
-        for (const b of bytes) { data[head % RING] = b; head++; }
+        // Mirror device hid_insert_str: normalize injected newlines to CR so
+        // send_char matches a physical Enter ('\r'), collapsing CRLF to one CR.
+        // Consumers like pem's dialogs match '\r' only; a bare '\n' fails them.
+        let prev = 0;
+        for (const b of bytes) {
+          let ch = b;
+          if (ch === 0x0a) {            // LF
+            if (prev === 0x0d) { prev = ch; continue; }  // swallow LF of CRLF
+            ch = 0x0d;                  // CR
+          }
+          data[head % RING] = ch; head++;
+          prev = ch;
+        }
         Atomics.store(meta, 0, head);
         Atomics.notify(meta, 0);
       };

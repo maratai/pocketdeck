@@ -58,6 +58,21 @@ def _read_available(n):
   return bytes(out).decode('utf-8', 'replace')
 
 
+def _read_available_bytes(n):
+  # Raw-bytes counterpart of _read_available: no UTF-8 decode, so a multi-byte
+  # char split across reads survives intact (mirrors device read_nb_bytes).
+  head = int(_Atomics.load(_meta, 0))
+  tail = int(_Atomics.load(_meta, 1))
+  if tail >= head:
+    return b''
+  out = bytearray()
+  while tail < head and len(out) < n:
+    out.append(int(_data[tail % _cap]))
+    tail += 1
+  _Atomics.store(_meta, 1, tail)
+  return bytes(out)
+
+
 def _has_input():
   return int(_Atomics.load(_meta, 0)) > int(_Atomics.load(_meta, 1))
 
@@ -262,6 +277,10 @@ class Vscreen:
     s = _read_available(max_len)
     return (len(s.encode()), s)
 
+  def read_nb_bytes(self, max_len):
+    b = _read_available_bytes(max_len)
+    return (len(b), b)
+
   def poll(self):
     return _has_input()
 
@@ -271,12 +290,15 @@ class Vscreen:
   def get_tp_keys(self):
     # Byte layout (matches device firmware get_tp_keys):
     #   [0] slider  0..40 / 0xff=not-touched  (kMeta[3])
-    #   [1] touch Y 0..255 / 0xff=not-touched
-    #   [2] touch X 0..255 / 0xff=not-touched
-    #   [3] buttons  bit0=left, bit1=right
+    #   [1] touch Y 0..80  / 0xff=not-touched  (kMeta[6])
+    #   [2] touch X 0..100 / 0xff=not-touched  (kMeta[5])
+    #   [3] buttons  bit0=left, bit1=right      (kMeta[7])
     #   [4] dial    0..255 / 0xff=not-touched  (kMeta[4])
     tp = bytearray([0xff, 0xff, 0xff, 0x00, 0xff, 0xff, 0xff])
     tp[0] = int(_Atomics.load(_meta, 3)) & 0xFF
+    tp[1] = int(_Atomics.load(_meta, 6)) & 0xFF
+    tp[2] = int(_Atomics.load(_meta, 5)) & 0xFF
+    tp[3] = int(_Atomics.load(_meta, 7)) & 0xFF
     tp[4] = int(_Atomics.load(_meta, 4)) & 0xFF
     return bytes(tp)
 

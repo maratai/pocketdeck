@@ -109,6 +109,21 @@
       transition:background .06s, box-shadow .06s; }
     .dev-slider.active .dev-thumb { background:rgba(255,224,140,.85);
       box-shadow:0 0 14px 4px rgba(255,200,110,.6); }
+    /* Capacitive touchpad (the cross-hatched pad) and its two bottom contact
+       buttons. Position is the bounding box's top-left, like .dev-slider. */
+    .dev-touchpad { position:absolute; cursor:crosshair; touch-action:none;
+      border-radius:4%; z-index:5; }
+    .dev-touchpad.active { background:rgba(255,224,140,.10);
+      box-shadow:inset 0 0 0 2px rgba(255,224,140,.45); }
+    .dev-touch-dot { position:absolute; width:9%; aspect-ratio:1; display:none;
+      transform:translate(-50%,-50%); border-radius:9999px; pointer-events:none;
+      background:rgba(255,224,140,.9); box-shadow:0 0 12px 4px rgba(255,200,110,.6); }
+    .dev-touchpad.active .dev-touch-dot { display:block; }
+    .dev-touch-btn { position:absolute; cursor:pointer; touch-action:none;
+      border-radius:9999px; z-index:5; background:rgba(255,224,140,0);
+      transition:background .06s, box-shadow .06s; }
+    .dev-touch-btn.pressed { background:rgba(255,224,140,.5);
+      box-shadow:0 0 12px 4px rgba(255,200,110,.55); }
   </style>
 </head>
 <body class="font-body min-h-screen">
@@ -177,6 +192,14 @@
       <div id="slider-track" class="dev-slider" style="left:73.5%; top:23.5%; width:6%; height:31%;" aria-label="Slider">
         <div id="slider-thumb" class="dev-thumb"></div>
       </div>
+      <!-- Capacitive touchpad: drag to publish an analog X/Y position to apps
+           (get_tp_keys()[2]/[1]). The two pads at the very bottom edge are the
+           touchpad's left/right buttons (get_tp_keys()[3]). -->
+      <div id="touchpad" class="dev-touchpad" style="left:45.05%; top:58.39%; width:26.06%; height:31.20%;" aria-label="Touchpad">
+        <div id="touchpad-dot" class="dev-touch-dot"></div>
+      </div>
+      <div id="btn-tpl" class="dev-touch-btn" style="left:47.30%; top:95.80%; width:7.94%; height:3.92%;" aria-label="Touchpad left button"></div>
+      <div id="btn-tpr" class="dev-touch-btn" style="left:59.55%; top:95.80%; width:6.39%; height:3.83%;" aria-label="Touchpad right button"></div>
     </div>
     <div class="flex justify-between items-center px-1 mt-2">
       <p class="font-label text-[10px] uppercase tracking-widest text-outline">400 × 240 · 1-bit Mono</p>
@@ -873,10 +896,16 @@ const _enc   = new TextEncoder();
 
 // kMeta[3] = slider analog position (0..40, 0xff=not-touched).
 // kMeta[4] = dial position (0..255, 0xff=not-touched); set by the dial-ring drag.
+// kMeta[5] = touchpad X (0..100, 0xff=not-touched).
+// kMeta[6] = touchpad Y (0..80, 0xff=not-touched).
+// kMeta[7] = touchpad buttons bitfield (bit0 = left pad, bit1 = right pad).
 // rawMode mirrors ESC[?1h/?1l — in raw mode the slider scrolls instead of
 // reporting analog position.
 Atomics.store(kMeta, 3, 255);
 Atomics.store(kMeta, 4, 255);
+Atomics.store(kMeta, 5, 255);
+Atomics.store(kMeta, 6, 255);
+Atomics.store(kMeta, 7, 0);
 let rawMode = false;
 
 function sendKey(str) {
@@ -1069,6 +1098,62 @@ function sliderEnd() {
 sliderTrack.addEventListener('pointerup', sliderEnd);
 sliderTrack.addEventListener('pointercancel', sliderEnd);
 
+// ── On-screen touchpad ────────────────────────────────────────────────────────
+// Mirrors the device's capacitive pad: dragging publishes an absolute position
+// to kMeta[5]=X (0..100) and kMeta[6]=Y (0..80); release marks it untouched
+// (0xff). Apps read it via get_tp_keys()[2]/[1] — e.g. graph pans the view.
+const touchpad = document.getElementById('touchpad');
+const touchpadDot = document.getElementById('touchpad-dot');
+function touchpadSet(ev) {
+  const r = touchpad.getBoundingClientRect();
+  let fx = Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width));
+  let fy = Math.max(0, Math.min(1, (ev.clientY - r.top) / r.height));
+  touchpadDot.style.left = (fx * 100) + '%';
+  touchpadDot.style.top  = (fy * 100) + '%';
+  Atomics.store(kMeta, 5, Math.round(fx * 100));   // X: 0..100
+  Atomics.store(kMeta, 6, Math.round(fy * 80));    // Y: 0..80
+  Atomics.notify(kMeta, 0);
+}
+touchpad.addEventListener('pointerdown', ev => {
+  ev.preventDefault();
+  if (!isRunning) return;
+  touchpad.classList.add('active');
+  touchpad.setPointerCapture?.(ev.pointerId);
+  touchpadSet(ev);
+});
+touchpad.addEventListener('pointermove', ev => {
+  if (touchpad.classList.contains('active')) touchpadSet(ev);
+});
+function touchpadEnd() {
+  touchpad.classList.remove('active');
+  Atomics.store(kMeta, 5, 255);
+  Atomics.store(kMeta, 6, 255);
+  Atomics.notify(kMeta, 0);
+}
+touchpad.addEventListener('pointerup', touchpadEnd);
+touchpad.addEventListener('pointercancel', touchpadEnd);
+
+// ── Touchpad bottom buttons ───────────────────────────────────────────────────
+// The two contact pads at the bottom edge set bits in kMeta[7], read as
+// get_tp_keys()[3] (bit0=left, bit1=right). graph uses them to go-parent / reroot.
+for (const [id, bit] of [['btn-tpl', 1], ['btn-tpr', 2]]) {
+  const el = document.getElementById(id);
+  const press = ev => {
+    ev.preventDefault();
+    if (!isRunning) return;
+    el.classList.add('pressed');
+    el.setPointerCapture?.(ev.pointerId);
+    Atomics.store(kMeta, 7, Atomics.load(kMeta, 7) | bit); Atomics.notify(kMeta, 0);
+  };
+  const release = () => {
+    el.classList.remove('pressed');
+    Atomics.store(kMeta, 7, Atomics.load(kMeta, 7) & ~bit); Atomics.notify(kMeta, 0);
+  };
+  el.addEventListener('pointerdown', press);
+  el.addEventListener('pointerup', release);
+  el.addEventListener('pointercancel', release);
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 //  Worker orchestration
 // ════════════════════════════════════════════════════════════════════════════
@@ -1193,6 +1278,9 @@ function startApp(id) {
   rawMode = false; sliderStep = -1;
   Atomics.store(kMeta, 3, 255);   // reset slider
   Atomics.store(kMeta, 4, 255);   // reset dial
+  Atomics.store(kMeta, 5, 255);   // reset touchpad X
+  Atomics.store(kMeta, 6, 255);   // reset touchpad Y
+  Atomics.store(kMeta, 7, 0);     // reset touchpad buttons
   terminal.reset(); resetRenderState(); setMode(false);
   isRunning = true;
   setStatus('running', 'Running…');

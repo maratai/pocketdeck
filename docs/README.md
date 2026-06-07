@@ -204,7 +204,7 @@ pwd | Get current working directory
 netserver | launch network server to serve services. It provide screencast and clipboard sharing. See [[netserver/GETTING_STARTED]] for detail.
 setuni | Change terminal font to CJK Unicode font,.
 setjpf | Change terminal font to Japanese. It's lighter than setuni.
-grep pattern [path] | Search text in files. `-r` recursive, `-e` regex, `-n` line numbers, `-i` ignore case, `-l` filenames only, `--include .py,.md` filter by extension, `--max N` skip files larger than N bytes.
+grep pattern [path] | Search text in files, Linux-like. The pattern is a **regex by default** (MicroPython's limited `re`; unsupported patterns fall back to literal match). `-F` literal/fixed-string match, `-v` invert match, `-r` recursive, `-n` line numbers, `-i` ignore case, `-l` filenames only, `--include .py,.md` filter by extension, `--max N` skip files larger than N bytes. (`-e`/`-E` accepted but redundant since regex is the default.)
 curl [options] url | HTTP client for simple web requests. Supports `http://` and `https://`, `-o FILE` to save body to file, `-X METHOD` to choose request method, `-d DATA` to send request body, `-i` to include response headers, `-s` for silent mode, and `-V` to show version. `-H` for header.
 diff [options] left right | Compare two text files. Supports unified and side-by-side views, paging, output to file, and configurable context lines.
 qr [text...] | Generate and display a QR code centered on the screen. Supports `-c` to read from the clipboard.
@@ -238,6 +238,38 @@ diff -o /sd/work/readme.diff README_old.md README.md
 ```
 
 In side-by-side view, `<` marks lines only on the left, `>` marks lines only on the right, and `!` marks changed lines on both sides.
+
+### grep
+
+`grep` searches files for lines matching a pattern, in a Linux-like way. The pattern is treated as a **regular expression by default**, using MicroPython's limited `re` module. If a pattern uses regex features that `re` does not support, grep prints a notice and falls back to a plain literal (substring) search instead of failing.
+
+```
+grep [options] pattern [path]
+```
+
+If `path` is omitted the current working directory is searched. A directory is searched only at its top level unless `-r` is given. Matches are printed as `file: line`, with the filename highlighted.
+
+Options:
+
+- `-r` or `-R` or `--recursive` : Recurse into sub-directories.
+- `-n` : Prefix each matching line with its line number.
+- `-i` or `--ignore-case` : Case-insensitive match.
+- `-l` : List only the names of files that contain a match (no lines).
+- `-v` or `--invert-match` : Select lines that do **not** match.
+- `-F` or `--fixed-strings` : Treat the pattern as a literal string, not a regex.
+- `-e` or `-E` or `--regex` : Treat the pattern as a regex. Accepted for compatibility but redundant, since regex is already the default.
+- `--include EXT` : Only search files whose name ends with the given extension. Pass several comma-separated extensions to match any of them, e.g. `--include .py,.md`. This matches by file extension, not a glob pattern.
+- `--max N` : Skip files larger than N bytes.
+
+Examples:
+
+```
+grep TODO /sd/Documents
+grep -rn "def .*main" /sd/py
+grep -ri --include .py,.md hello /sd/Documents
+grep -F "a+b" notes.txt
+grep -l error /sd/logs
+```
 
 ## SSH/SCP setup guide
 
@@ -301,7 +333,26 @@ analog_clock_set_timer 10
 
 ### Journal
 
-Journal (`journal`) analizes [[journal.md]] and visualizes to chart. Refer [[journal_readme.md]] for detail.
+Journal (`journal`) analizes journal Markdown file and visualizes to chart. Refer [[journal_readme.md]] for detail.
+
+```
+journal [file] [file..]
+```
+
+### Graph
+
+Graph ('graph') gives Obsidian-style Markdown graph view.
+
+- `-n` : max nodes that app reads
+- `--depth` : Max depth that app reads
+
+Operation:
+
+- arrow keys, touchpad : Scroll screen
+- Right bottom button : Re-root the node
+- Left bottom button : Go to its parent node
+- Enter : Open the selected file
+- Ctrl-s : Incremental search. PEM (emacs) style. Ctrl-g to quit the search.
 
 ### Music
 

@@ -125,6 +125,8 @@ Pdeck module controls Pocket Deck system features and peripherals.
 - `cmd_execute(command, screen_num_cmdshell, screen_num_dest)` Execute command in command shell. Screen_nym_cmdshell is screen numer of command shell instance.
 Usually it will be 1(0 based number) because command shell is always running on screen 2). screen_num_dest is the screen number you want to execut the command.
 
+- `command_shell(screen_num)` Launch a new command-line shell on the given screen. This is the equivalent of the cmd shell's `cmd [screen]` command, except `screen_num` here is 0 based (the `cmd` command takes the 1 based GUI number). Valid screens are 2-9, the screen must be free (no shell or app already running there) and must not be the current screen. Returns `True` on success, `False` on error.
+
 - `delay_tick(tick)` Sleep in specified ticks. It's similar to time.sleep_ms(), but the unit is in tick, and it will perform better yielding. MicroPython's sleep_ms() does accurate sleeping but it frequently checks the time. It will give better CPU utilization when you don't need precise time sleep.
 
 - `get_screen_num()` Returns the current screen number.
@@ -321,7 +323,9 @@ Callback function to be called for every frame update.
 
 - `send_key_event(keycode, modifier, event_type)` Inject a keyboard event. It's hardware keycode, not ascii code. See hid_usage_keyboard for keycode list and modifier list.
 
-- `read_nb(max_bytes)` Non-blocking keyboard read. max_bytes can be up to 29. Returns tuple`(bytes_read, data)` where data is a string. Use `encode('ascii')` to convert to bytes. Special keys are escape sequences, e.g. Up arrow is `b'\x1b[A'`. **For blocking reads from app code, use `vs.read(n)` on the stream instead.**
+- `read_nb(max_bytes)` Non-blocking keyboard read. max_bytes can be up to 29. Returns tuple`(bytes_read, data)` where data is a string. Use `encode('ascii')` to convert to bytes. Special keys are escape sequences, e.g. Up arrow is `b'\x1b[A'`. **For blocking reads from app code, use `vs.read(n)` on the stream instead.** Note: `data` is a validated `str`, so reading a span that splits a multi-byte UTF-8 character (e.g. one byte of a pasted/`send_char`'d 2–4 byte char) raises `UnicodeError`. If your app may receive UTF-8 input, use `read_nb_bytes()`.
+
+- `read_nb_bytes(max_bytes)` Same as `read_nb()` but returns `(bytes_read, data)` where `data` is `bytes`. Carries no UTF-8 validation, so it never raises on a multi-byte character split across reads — use this for binary key handling and UTF-8 paste/`send_char` input. The bytes from successive reads can be concatenated to reassemble a complete UTF-8 sequence.
 
 - `poll()` Returns `True` if keyboard input is available. Also available as `vs.poll()` on the stream.
 

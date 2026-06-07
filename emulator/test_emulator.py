@@ -59,7 +59,7 @@ async def run():
     app_items = await page.query_selector_all('.ios-list-item')
     app_count = len(app_items)
     labels = [await it.inner_text() for it in app_items]
-    print(f"{'✓' if app_count == 4 else '✗'} App list: {app_count} apps {labels}")
+    print(f"{'✓' if app_count == 5 else '✗'} App list: {app_count} apps {labels}")
 
     results = {}
 
@@ -131,6 +131,19 @@ async def run():
     results['journal'] = journal_ok
     print(f"{'✓' if journal_ok else '✗'} Journal rendered: pixsum {j}")
 
+    # ── Graph: tap to run; renders the seeded home.md link graph ───────────
+    print("\n── Graph ────────────────────────────────────────────────────────")
+    await page.click('.ios-list-item:nth-child(5)')
+    await page.wait_for_function(
+      "() => document.getElementById('status-text')?.textContent.includes('Running')",
+      timeout=15_000
+    )
+    await asyncio.sleep(2.5)
+    g = await page.evaluate(CANVAS_SUM)
+    graph_ok = g > 0
+    results['graph'] = graph_ok
+    print(f"{'✓' if graph_ok else '✗'} Graph rendered: pixsum {g}")
+
     passed = all(results.values())
 
     # ── Summary ───────────────────────────────────────────────────────────
@@ -147,7 +160,7 @@ async def run():
       print(f"  {'PASS' if v else 'FAIL'}  {k}")
 
     await browser.close()
-    return 0 if (app_count == 4 and passed) else 1
+    return 0 if (app_count == 5 and passed) else 1
 
 if __name__ == '__main__':
   sys.exit(asyncio.run(run()))

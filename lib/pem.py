@@ -629,6 +629,10 @@ class editor:
   def refresh_screen(self):
     bm.start_bench()
 
+    # Batch the whole frame into a single write+flush (desktop only; no-op on
+    # device) so the cursor hide/redraw/show doesn't flicker on PC terminals.
+    self.v.begin_frame()
+
     # While a region mark is active, re-render every refresh so the highlight
     # tracks the moving cursor (plain cursor moves otherwise skip rendering).
     if self.dmod or self.file.mark_row is not None:
@@ -709,6 +713,7 @@ class editor:
       self.v.print(el.cursor_mode(True))
     
     bm.add_bench('status bar')
+    self.v.end_frame()
     bm.print_bench()
 
   def cursor_move(self, a_row, a_col):
@@ -1565,6 +1570,16 @@ class editor:
       self.process_open_file(b'/sd/Documents/pd/pem_readme.md', 0,0)
       return 0
       
+    # A remote open (pem_client) is serviced by synthesizing the open key into
+    # this handler. If we're in incremental search, MODE_SEARCH would swallow
+    # that key as search input and the queue would never drain. Cancel search
+    # first (mirrors the escape-key abort path) and fall through to the open.
+    if self.mode == self.MODE_SEARCH and open_pending_list and keys in km.map['open']:
+      if self.search_info.matched_query != None:
+        self.search_info.last_query_str = self.search_info.query_str
+      self.mode = self.MODE_NORMAL
+      self.search_info.close()
+
     if self.mode == self.MODE_SEARCH:
       return self.process_search(keys)
       
@@ -2814,13 +2829,22 @@ if pdeck_enabled:
     def poll(self):
       return self.v.poll()
 
+    # Frame batching is a desktop-only flicker fix (see the CPython
+    # screen_interface); the device terminal composites the cursor into the
+    # framebuffer, so here these are no-ops.
+    def begin_frame(self):
+      pass
+
+    def end_frame(self):
+      pass
+
     def print(self, str):
       self.v.print(str)
 
     def read(self, n):
       ret = None
       while True:
-        ret = self.v.read_nb(1)
+        ret = self.v.read_nb_bytes(1)
         if len(open_pending_list) > 0:
           return km.map['open'][0]
         if ret:
@@ -2837,7 +2861,11 @@ if pdeck_enabled:
         else:
           pdeck.delay_tick(100)
           #time.sleep_ms(200)
-      keys = ret[1].encode('ascii')
+      # read_nb_bytes already returns bytes, so no encode step is needed; this
+      # also preserves multi-byte UTF-8 (paste / AI send_char) that .encode('ascii')
+      # used to choke on. The byte read above can split a UTF-8 char across
+      # successive read() calls; the editor reassembles the bytes downstream.
+      keys = ret[1]
       return keys
 
     def get_terminal_size(self):
@@ -2856,13 +2884,34 @@ else:
       self.allow_remote_open = True
     def poll(self):
       return False
+
+    # Frame batching: while a frame is open, print() accumulates into _frame
+    # instead of writing+flushing each fragment. A real PC terminal has a
+    # blinking hardware cursor and would redraw it on each flushed write, so the
+    # per-keystroke hide/redraw/show cycle was visible as a flicker. Coalescing
+    # a whole refresh into one write+flush makes the update atomic.
+    def begin_frame(self):
+      self._frame = bytearray()
+      self._buffering = True
+
+    def end_frame(self):
+      self._buffering = False
+      if self._frame:
+        sys.stdout.buffer.write(self._frame)
+        sys.stdout.buffer.flush()
+      self._frame = bytearray()
+
     def print(self, str):
       # The editor mixes str (escape sequences) and bytes/bytearray (rendered
       # rows). Go through the binary buffer so both work and UTF-8 is preserved.
       if isinstance(str, (bytes, bytearray)):
-        sys.stdout.buffer.write(str)
+        data = str
       else:
-        sys.stdout.buffer.write(str.encode('utf-8'))
+        data = str.encode('utf-8')
+      if getattr(self, '_buffering', False):
+        self._frame.extend(data)
+        return
+      sys.stdout.buffer.write(data)
       sys.stdout.buffer.flush()
     def read(self, n):
       # Wait for a keypress, but wake periodically so queued remote-open requests
@@ -3016,6 +3065,9 @@ def main(vs, args_in):
   except OSError:
     v.print("File open error\n")
   finally:
+    # If a frame was left open by an exception mid-refresh, close batching so
+    # these cleanup writes flush instead of being buffered and lost.
+    v.end_frame()
     v.print(el.reset_font_color())
     v.set_raw_mode(False)
     v.print(el.erase_screen())

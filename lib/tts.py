@@ -96,7 +96,7 @@ def main(vs, args_in):
   print('Generating speech...', file=vs)
   res = gpt.tts_stream(text, voice=args.voicemodel)
   if not res or res.status_code != 200:
-    print('TTS failed', file=vs)
+    print(f'TTS failed', file=vs)
     try:
       if res:
         res.close()

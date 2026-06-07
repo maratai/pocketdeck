@@ -1,3 +1,17 @@
+## Release Note June 6, 2026
+
+### Firmware
+
+#### PEM
+
+- Bug fix
+
+## Applications
+
+- gpt.py : bug fixes
+- `graph` application is added. This will show Obsidian-style Markdown graph view.
+- Journal application rebuild, to support mutiple files, performance improvement, and YYYY-MM-DD.md.
+
 ## Release Note June 3, 2026
 
 ## Firmware

@@ -183,6 +183,15 @@ def run_app(code_path, args_list):
 
   _t.sleep = _patched_sleep
 
+  # Some apps drive their render loop with time.sleep_ms()/sleep_us() rather than
+  # time.sleep() or pdeck.delay_tick() (e.g. graph's main loop). On the device the
+  # display task renders callbacks independently of how the app loop waits, but
+  # here a frame is only produced from inside the patched sleep. Route the ms/us
+  # helpers through it too, otherwise such apps spin without ever rendering and
+  # appear frozen. (The 75 fps gate in _do_frame still caps redraw volume.)
+  _t.sleep_ms = lambda ms: _patched_sleep(ms / 1000)
+  _t.sleep_us = lambda us: _patched_sleep(us / 1_000_000)
+
   # ── load + run ──
   with open(code_path) as f:
     code_str = f.read()

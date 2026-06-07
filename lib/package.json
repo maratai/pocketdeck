@@ -337,6 +337,10 @@
             "gptn.py"
         ],
         [
+            "graph.py",
+            "graph.py"
+        ],
+        [
             "grep.py",
             "grep.py"
         ],
@@ -664,7 +668,7 @@
         },
         {
             "path": "tts.py",
-            "md5": "7f69f380b0bda1c8db18a086aef099ce"
+            "md5": "01968b1188f05d4a1e4a598d61041670"
         },
         {
             "path": "rm.py",
@@ -712,7 +716,7 @@
         },
         {
             "path": "journal.py",
-            "md5": "a655f4af2c9d82f4b6b554e34ceda1b0"
+            "md5": "4fe8155c0b8ab0b295f179c79e8d1bc7"
         },
         {
             "path": "wavplay.py",
@@ -756,7 +760,7 @@
         },
         {
             "path": "gpt_rt.py",
-            "md5": "53e6395b1b2859e445447f708bc77d4b"
+            "md5": "b2a0a373f38a543bd8019f7050fbbd5a"
         },
         {
             "path": "setjpf.py",
@@ -768,7 +772,7 @@
         },
         {
             "path": "gpt.py",
-            "md5": "df4bebc376adb6d33ec29d14a33793a8"
+            "md5": "d8071def6d5e09076c6897c4c0cd2b26"
         },
         {
             "path": "diff.py",
@@ -832,7 +836,7 @@
         },
         {
             "path": "pem.py",
-            "md5": "4ea573b33f0e4d6eb57875a560a355d7"
+            "md5": "64162e0784205335441a16da5ecd151c"
         },
         {
             "path": "recorder.py",
@@ -868,7 +872,7 @@
         },
         {
             "path": "grep.py",
-            "md5": "03e22f84500f11390c92d34952034db7"
+            "md5": "dfc63640bda168401591d2fd0d4ef9f3"
         },
         {
             "path": "sync.py",
@@ -877,6 +881,10 @@
         {
             "path": "zen_chamber.py",
             "md5": "86415e513b8c89c82f46db048eb24c1b"
+        },
+        {
+            "path": "graph.py",
+            "md5": "bd3f8d316897d725c3440ff8d34b41c8"
         },
         {
             "path": "font/miranda-bolditalic.g3df",
@@ -968,7 +976,7 @@
         },
         {
             "path": "noa/pdeck_complete.py",
-            "md5": "0e0fbfe8f82ccd64948b5a33b4fb9bca"
+            "md5": "96622cfec4b762a912fe42dea72ddc28"
         },
         {
             "path": "noa/auto_connect.py",
@@ -1088,7 +1096,7 @@
         },
         {
             "path": "data/block.xbmr",
-            "md5": "6318ab2687415d3161b2a5343f29783f"
+            "md5": "d41d8cd98f00b204e9800998ecf8427e"
         },
         {
             "path": "data/invader.wav",
@@ -1100,7 +1108,7 @@
         },
         {
             "path": "data/apps_db.json",
-            "md5": "fd270b3d2729fa843baee93015553125"
+            "md5": "aced79e3e540f78e69646a1011907450"
         },
         {
             "path": "data/cat3.xbmr",
