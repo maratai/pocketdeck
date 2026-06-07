@@ -5,7 +5,7 @@ let ready = false;
 let running = false;
 
 const STUB_FILES = [
-  '_runner.py', 'vscreen.py', 'pdeck.py', 'esclib.py', 'anm.py',
+  '_runner.py', 'vscreen.py', 'pdeck.py', 'esclib.py',
   'dsplib.py', 'xbmreader.py', 'pdeck_utils.py', 'overlay.py', 'audio.py',
   'ujson.py', 'network.py', 'termios.py', 'machine.py', 'micropython.py',
   // Japanese input (PEM): socket bridges HTTP to sync-XHR for henkan; fontloader
@@ -191,8 +191,8 @@ for _m in ('socket', 'fontloader'):
         const apps = [
           ["Pem",          { type:"program", command:[["pem"]],          description:"Pem text editor" }],
           ["Analog Clock", { type:"program", command:[["analog_clock"]], description:"Clock, calendar and timer" }],
-          ["Nudoc",        { type:"program", command:[["nudoc"]],        description:"Sudoku game" }],
-          ["Invader",      { type:"program", command:[["invader"]],      description:"Space invaders" }],
+          ["Journal",        { type:"program", command:[["journal"]],        description:"Habbit tracker" }],
+          ["Graph",      { type:"program", command:[["graph"]],      description:"Markdown graph" }],
           ["Music",        { type:"program", command:[["music"]],        description:"Music player" }],
         ];
         pyodide.FS.writeFile('/config/apps.json', JSON.stringify(apps));

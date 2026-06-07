@@ -778,7 +778,9 @@ class graph_diary:
 
   def _panel_animating(self):
     obj = self.seq.get_obj('panel')
-    return not obj.get_time == 1.0
+    if obj is None:
+      return False
+    return obj.get_time() != 1.0
     
 
   def _graph_signature(self, render):
@@ -819,7 +821,9 @@ class graph_diary:
 
   def _graph_animating(self):
     obj = self.seq.get_obj('graph')
-    return not obj.get_time == 1.0
+    if obj is None:
+      return False
+    return obj.get_time() != 1.0
 
   def _graph_morph(self):
     if self.graph_anim is None:
